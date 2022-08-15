@@ -1,0 +1,40 @@
+[package]
+name = "obagg"
+authors = ["Jonathan Fulcher <furryboffin@gmail.com>"]
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+# [[bin]]
+# name = "aggregated-orderbook-server"
+# path = "src/server.rs"
+
+# [[bin]]
+# name = "aggregated-orderbook-client"
+# path = "src/aggregated-orderbook-client.rs"
+
+[lib]
+name = "obagg"
+
+[dependencies]
+env_logger = "0.9"
+futures = "0.3"
+futures-channel = "0.3"
+futures-util = "0.3"
+h2 = "0.3"
+log = "0.4"
+prost = "0.11"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+serde_yaml = "0.9"
+structopt = "0.3"
+syslog = "6.0"
+tokio-stream = "0.1.9" 
+tokio = { version = "1.20.1", features = [ "macros", "rt-multi-thread"] }
+tokio-tungstenite = { version = "0.17", features = [ "native-tls" ] }
+tonic = { version="0.8.0", features = ["tls"] }
+url = "2.2"
+
+[build-dependencies]
+tonic-build = "0.8.0"

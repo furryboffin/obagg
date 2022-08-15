@@ -6,6 +6,8 @@ use tonic::{transport::Server, Request, Response, Status};
 
 use orderbook::{Empty, Level, Summary};
 
+use crate::config;
+
 pub mod orderbook {
     tonic::include_proto!("orderbook");
 }
@@ -75,13 +77,13 @@ impl orderbook::orderbook_aggregator_server::OrderbookAggregator for OrderbookAg
     }
 }
 
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+pub async fn server(conf: config::Server) {
     let server = OrderbookAggregatorServer {};
+    println!("Starting Server... Bind Address: {:?}", &conf.bind_address);
     Server::builder()
         .add_service(orderbook::orderbook_aggregator_server::OrderbookAggregatorServer::new(server))
+        // .serve(conf.bind_address)
         .serve("[::1]:50051".to_socket_addrs().unwrap().next().unwrap())
         .await
         .unwrap();
-    Ok(())
 }

@@ -1,0 +1,9 @@
+---
+#
+# Example configuration file for keyrock aggregated orderbook server
+#
+
+bind_address: "[::1]:8000"
+
+exchanges: ["binance","bitstamp"]
+tickers: ["BTCUSDT"]

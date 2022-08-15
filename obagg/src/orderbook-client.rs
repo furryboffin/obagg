@@ -7,7 +7,9 @@ use tokio_tungstenite::{connect_async, tungstenite::protocol::Message};
 #[tokio::main]
 async fn main() {
     let connect_addr =
-        env::args().nth(1).unwrap_or_else(|| panic!("this program requires at least one argument"));
+        env::args().nth(1).unwrap_or_else(|| panic!("this program requires at least two arguments"));
+    let ticker =
+        env::args().nth(2).unwrap_or_else(|| panic!("this program requires at least two arguments"));
 
     let url = url::Url::parse(&connect_addr).unwrap();
 
