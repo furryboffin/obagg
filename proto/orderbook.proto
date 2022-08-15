@@ -1,17 +1,46 @@
 syntax = "proto3";
 package orderbook;
-// rpc BookSummary(Empty) returns (stream Summary);
+
 service OrderbookAggregator {
- rpc BookSummary(Empty) returns (Summary);
+    // JRF TODO. The first implementation is a simple stream of the book on each
+    // send. A better implementation would be to start with a simple summary,
+    // and then open a stream to pull updates to the book, this reduces the
+    // amount of data that needs to be sent.
+    rpc BookSummary(Empty) returns (Summary);
+    rpc BookSummaryStream(Empty) returns (stream Summary);
+    // rpc BookUpdate(Empty) returns (stream Summary);
 }
 message Empty {}
 message Summary {
- double spread = 1;
- repeated Level bids = 2;
- repeated Level asks = 3;
+    double spread = 1;
+    repeated Level bids = 2;
+    repeated Level asks = 3;
 }
 message Level {
- string exchange = 1;
- double price = 2;
- double amount = 3;
+    string exchange = 1;
+    double price = 2;
+    double amount = 3;
 }
+
+ // EchoRequest is the request for echo.
+/* message EchoRequest {
+   string message = 1;
+ }
+
+ // EchoResponse is the response for echo.
+ message EchoResponse {
+   string message = 1;
+ }
+
+ // Echo is the echo service.
+ service Echo {
+   // UnaryEcho is unary echo.
+   rpc UnaryEcho(EchoRequest) returns (EchoResponse) {}
+   // ServerStreamingEcho is server side streaming.
+   rpc ServerStreamingEcho(EchoRequest) returns (stream EchoResponse) {}
+   // ClientStreamingEcho is client side streaming.
+   rpc ClientStreamingEcho(stream EchoRequest) returns (EchoResponse) {}
+   // BidirectionalStreamingEcho is bidi streaming.
+   rpc BidirectionalStreamingEcho(stream EchoRequest) returns (stream EchoResponse) {}
+ }
+*/

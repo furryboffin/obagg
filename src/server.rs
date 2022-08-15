@@ -1,24 +1,37 @@
+use futures::Stream;
+use std::{net::ToSocketAddrs, pin::Pin, time::Duration};
+use tokio::sync::mpsc;
+use tokio_stream::{wrappers::ReceiverStream, StreamExt};
 use tonic::{transport::Server, Request, Response, Status};
 
-use orderbook::orderbook_aggregator_server::{OrderbookAggregator, OrderbookAggregatorServer};
 use orderbook::{Empty, Level, Summary};
 
 pub mod orderbook {
     tonic::include_proto!("orderbook");
 }
-#[derive(Debug, Default)]
-pub struct OrderbookAggregatorService {}
+
+type OrderbookAggregatorResult<T> = Result<Response<T>, Status>;
+type ResponseStream = Pin<Box<dyn Stream<Item = Result<Summary, Status>> + Send>>;
+
+#[derive(Debug)]
+pub struct OrderbookAggregatorServer {}
 
 #[tonic::async_trait]
-impl OrderbookAggregator for OrderbookAggregatorService {
-    async fn book_summary(
-        &self,
-        request: Request<Empty>
-    ) -> Result<Response<Summary>, Status> {
-        println!("goit a request: {:?}", request);
+impl orderbook::orderbook_aggregator_server::OrderbookAggregator for OrderbookAggregatorServer {
+    async fn book_summary(&self, _: Request<Empty>) -> OrderbookAggregatorResult<Summary> {
+        Err(Status::unimplemented("not implemented"))
+    }
 
-        // let req = request.into_inner();
-        let reply = Summary {
+    type BookSummaryStreamStream = ResponseStream;
+
+    async fn book_summary_stream(
+        &self,
+        req: Request<Empty>,
+    ) -> OrderbookAggregatorResult<Self::BookSummaryStreamStream> {
+        println!("OrderbookAggregatorServer::server_streaming_orderbook_aggregator");
+        println!("\tclient connected from: {:?}", req.remote_addr());
+        // creating infinite stream with requested message
+        let repeat = std::iter::repeat(Summary {
             spread: 10.0,
             bids: vec![
                 Level {
@@ -34,20 +47,41 @@ impl OrderbookAggregator for OrderbookAggregatorService {
                     amount: 500.1,
                 }
             ],
-        };
+        });
+        let mut stream = Box::pin(tokio_stream::iter(repeat).throttle(Duration::from_millis(200)));
 
-        Ok(Response::new(reply))
+        // spawn and channel are required if you want handle "disconnect" functionality
+        // the `out_stream` will not be polled after client disconnect
+        let (tx, rx) = mpsc::channel(128);
+        tokio::spawn(async move {
+            while let Some(item) = stream.next().await {
+                match tx.send(Result::<_, Status>::Ok(item)).await {
+                    Ok(_) => {
+                        // item (server response) was queued to be send to client
+                    }
+                    Err(_item) => {
+                        // output_stream was build from rx and both are dropped
+                        break;
+                    }
+                }
+            }
+            println!("\tclient disconnected");
+        });
 
+        let output_stream = ReceiverStream::new(rx);
+        Ok(Response::new(
+            Box::pin(output_stream) as Self::BookSummaryStreamStream
+        ))
     }
 }
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let addr = "[::1]:50051".parse()?;
-    let orderbook_service = OrderbookAggregatorService::default();
+    let server = OrderbookAggregatorServer {};
     Server::builder()
-        .add_service(OrderbookAggregatorServer::new(orderbook_service))
-        .serve(addr)
-        .await?;
+        .add_service(orderbook::orderbook_aggregator_server::OrderbookAggregatorServer::new(server))
+        .serve("[::1]:50051".to_socket_addrs().unwrap().next().unwrap())
+        .await
+        .unwrap();
     Ok(())
 }
