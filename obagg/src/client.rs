@@ -1,18 +1,24 @@
 use orderbook::orderbook_aggregator_client::OrderbookAggregatorClient;
 use orderbook::Empty;
 
+use http::Uri;
+
 use crate::config;
 
 pub mod orderbook {
     tonic::include_proto!("orderbook");
 }
 
-// #[tokio::main]
-// async fn main() -> Result<(), Box<dyn std::error::Error>> {
 pub async fn client(conf: config::Server) {
-        let channel = tonic::transport::Channel::from_static("http://[::1]:50051")
-    .connect()
-    .await.unwrap();
+    let uri = Uri::builder()
+        .scheme("http")
+        .authority(conf.bind_address.to_string())
+        .path_and_query("")
+        .build()
+        .unwrap();
+    let channel = tonic::transport::Channel::builder(uri)
+        .connect()
+        .await.unwrap();
     let mut client = OrderbookAggregatorClient::new(channel);
     let request = tonic::Request::new(
         Empty{},

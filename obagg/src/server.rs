@@ -1,5 +1,5 @@
 use futures::Stream;
-use std::{net::ToSocketAddrs, pin::Pin, time::Duration};
+use std::{pin::Pin, time::Duration};
 use tokio::sync::mpsc;
 use tokio_stream::{wrappers::ReceiverStream, StreamExt};
 use tonic::{transport::Server, Request, Response, Status};
@@ -77,13 +77,16 @@ impl orderbook::orderbook_aggregator_server::OrderbookAggregator for OrderbookAg
     }
 }
 
+// This server function first launches the gRPC stream server to serve the aggregated orderbook
+// followed by launching websocket clients for each exchange.
 pub async fn server(conf: config::Server) {
     let server = OrderbookAggregatorServer {};
-    println!("Starting Server... Bind Address: {:?}", &conf.bind_address);
+    println!("Starting gRPC Server... Bind Address: {:?}", &conf.bind_address);
     Server::builder()
         .add_service(orderbook::orderbook_aggregator_server::OrderbookAggregatorServer::new(server))
-        // .serve(conf.bind_address)
-        .serve("[::1]:50051".to_socket_addrs().unwrap().next().unwrap())
+        .serve(conf.bind_address)
         .await
         .unwrap();
+
+
 }
