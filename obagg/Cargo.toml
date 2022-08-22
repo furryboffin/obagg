@@ -14,13 +14,19 @@ edition = "2021"
 # name = "aggregated-orderbook-client"
 # path = "src/aggregated-orderbook-client.rs"
 
+# [[bin]]
+# name = "orderbook-client"
+# path = "src/orderbook-client.rs"
+
 [lib]
 name = "obagg"
 
 [dependencies]
+async-stream = "0.3"
 env_logger = "0.9"
 futures = "0.3"
 futures-channel = "0.3"
+futures-core = "0.3"
 futures-util = "0.3"
 http = "0.2"
 h2 = "0.3"

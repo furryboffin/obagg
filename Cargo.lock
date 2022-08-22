@@ -719,11 +719,14 @@ dependencies = [
 name = "obagg"
 version = "0.1.0"
 dependencies = [
+ "async-stream",
  "env_logger",
  "futures",
  "futures-channel",
+ "futures-core",
  "futures-util",
  "h2",
+ "http",
  "log",
  "prost",
  "serde",

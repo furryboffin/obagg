@@ -1,11 +1,15 @@
 mod server;
 mod client;
 
-pub mod config;
+mod config;
+mod bitstamp_orderbook_client;
+mod binance_orderbook_client;
+pub mod orderbook {
+    tonic::include_proto!("orderbook");
+}
 
 pub use server::server;
 pub use client::client;
-
 #[derive(Debug)]
 pub struct Error(String);
 

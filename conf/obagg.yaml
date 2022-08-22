@@ -3,7 +3,9 @@
 # Example configuration file for keyrock aggregated orderbook server
 #
 
-bind_address: "[::1]:8000"
-
-exchanges: ["binance","bitstamp"]
-tickers: ["BTCUSDT"]
+bind_address: "[::1]:50051"
+ticker: btcusdt
+depth: 20
+websockets:
+  binance: "wss://stream.binance.com:9443"
+  bitstamp: "wss://ws.bitstamp.net"

@@ -16,9 +16,12 @@ pub async fn client(conf: config::Server) {
         .path_and_query("")
         .build()
         .unwrap();
-    let channel = tonic::transport::Channel::builder(uri)
+    println!("Client attempting to connect to : {:?}", uri.clone());
+    let channel = tonic::transport::Channel::builder(uri.clone())
         .connect()
         .await.unwrap();
+    println!("Client connected to : {:?}", uri);
+
     let mut client = OrderbookAggregatorClient::new(channel);
     let request = tonic::Request::new(
         Empty{},

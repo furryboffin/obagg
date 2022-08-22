@@ -3,8 +3,17 @@ use std::error::Error;
 use std::net::SocketAddr;
 
 #[derive(Deserialize)]
+pub struct Websockets {
+    pub binance: String,
+    pub bitstamp: String,
+}
+
+#[derive(Deserialize)]
 pub struct Server {
     pub bind_address: SocketAddr,
+    pub depth: u16,
+    pub ticker: String,
+    pub websockets: Websockets,
 }
 
 fn file_from_env(var: &str) -> Result<std::fs::File, Box<dyn Error + Sync + Send>> {
