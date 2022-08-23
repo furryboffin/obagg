@@ -21,28 +21,35 @@ example to show the gRPC server and client running together in tandem.
 
 Once you have cloned the github repository locally, cd into the project folder:
 
-`cd obagg`
+```cd obagg```
 
 Then run the following commands to build and run the docker container:
 
-`docker build -t obagg .`
-`docker run -t obagg`
+```
+docker build -t obagg .
+docker run -t obagg
+```
 
 ## Running Obagg locally
 
 Obagg is dependent on the Rust crate `tonic`, which in turn relies on the `protoc` protobuf compiler. This can be installed locally:
 
-`apt update && apt upgrade -y`
-`apt install -y protobuf-compiler libprotobuf-dev`
+```
+apt update && apt upgrade -y
+apt install -y protobuf-compiler libprotobuf-dev
+```
 
 Once you have cloned the github repository locally, cd into the project folder:
 
-`cd obagg`
+```cd obagg```
 
 Now you can compile and run locally with the following commands:
-`cargo build`
-`cargo run --bin obagg -- --no-syslog grpc`
-`cargo run --bin obagg -- --no-syslog client`
+```
+cargo build
+export AGGREGATED_ORDERBOOK_CONFIG="conf/obagg.yaml"
+cargo run --bin obagg -- --no-syslog grpc
+cargo run --bin obagg -- --no-syslog client
+```
 
 You will probably want to run the grpc server and the client in different terminals for simplicity.
 
