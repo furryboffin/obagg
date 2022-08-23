@@ -1,6 +1,5 @@
 mod log;
-
-// use ::log::error;
+use ::log::error;
 use serde::de::DeserializeOwned;
 // use serde::Deserialize;
 use structopt::StructOpt;
@@ -26,11 +25,17 @@ async fn main() {
     match opt.subcommand {
         Subcommand::Grpc => {
             log::init("obagg-server".to_string(), opt.disable_syslog);
-            obagg::server(read_config()).await;
+            if let Err(e) = obagg::server(read_config()).await {
+                error!("Error returned from Server : {}", e);
+                println!("Error returned from Server : {}", e);
+            }
         }
         Subcommand::Client => {
             log::init("obagg-client".to_string(), opt.disable_syslog);
-            obagg::client(read_config()).await;
+            if let Err(e) = obagg::client(read_config()).await {
+                error!("Error returned from Server : {}", e);
+                println!("Error returned from Server : {}", e);
+            }
         }
         Subcommand::Version => {
             println!("OBAggregator {}", env!("CARGO_PKG_VERSION"));

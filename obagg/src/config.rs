@@ -1,6 +1,5 @@
 use serde::Deserialize;
-use std::error::Error;
-use std::net::SocketAddr;
+use std::{error::Error, net::SocketAddr};
 
 #[derive(Deserialize)]
 pub struct Websockets {

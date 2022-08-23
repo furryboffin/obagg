@@ -1,7 +1,8 @@
-use futures_util::{future, pin_mut, StreamExt, SinkExt};
+use futures_util::StreamExt;
+use tokio::io::AsyncWriteExt;
+use tokio_tungstenite::connect_async;
+
 use crate::config;
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tokio_tungstenite::{connect_async};
 
 pub async fn binance_orderbook_client(conf: &config::Server) -> Result<(), tonic::transport::Error> {
     // Binance requires that the ticker and params be specified in the url. First we must construct
