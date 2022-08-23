@@ -1,3 +1,5 @@
+// JRF TODO Decide if we need our own Error or not. It is only required if we are generating errors
+// from within our code.
 #[derive(Debug)]
 pub enum Error {
     Boxed(Box<dyn std::error::Error + Sync + Send>),

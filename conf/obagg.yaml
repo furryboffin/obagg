@@ -1,9 +1,10 @@
 ---
 #
-# Example configuration file for keyrock aggregated orderbook server
+# Example configuration file for the orderbook aggregator Obagg server
 #
 
-bind_address: "[::1]:50051"
+# bind_address: "[::1]:50051"
+bind_address: "127.0.0.1:50051"
 ticker: btcusdt
 depth: 20
 websockets:

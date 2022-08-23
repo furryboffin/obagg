@@ -6,18 +6,6 @@ edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
-# [[bin]]
-# name = "aggregated-orderbook-server"
-# path = "src/server.rs"
-
-# [[bin]]
-# name = "aggregated-orderbook-client"
-# path = "src/aggregated-orderbook-client.rs"
-
-# [[bin]]
-# name = "orderbook-client"
-# path = "src/orderbook-client.rs"
-
 [lib]
 name = "obagg"
 

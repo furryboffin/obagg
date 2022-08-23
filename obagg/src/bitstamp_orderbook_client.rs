@@ -1,13 +1,12 @@
 use futures::{StreamExt, SinkExt};
+use log::{info, error};
 use serde_json;
-use std::sync::Arc;
+use std::{error::Error, sync::Arc};
 use tokio::{sync::{mpsc, Mutex}, time::{sleep, Duration}};
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 use tonic::Status;
-
 // use crate::{ config, error::Error, orderbook::{Level, Summary} };
 use crate::{ config, orderbook::{Level, Summary} };
-use std::error::Error;
 
 // use std::pin::Pin;
 // use serde_json::Value;
@@ -28,22 +27,26 @@ pub async fn bitstamp_orderbook_client(
     tx_pool: Arc<Mutex<Vec::<mpsc::Sender<Result<Summary, Status>>>>>,
 ) -> Result<(), Box<dyn Error>> {
 // pub async fn bitstamp_orderbook_client(conf: &config::Server) -> Result<(), tonic::transport::Error> {
-        println!("Bitstamp Collector Started...");
-    let url = url::Url::parse(&conf.websockets.bitstamp.as_str()).unwrap();
+    info!("Bitstamp Collector Started, attempting to connect to websocket server...");
+    let url = url::Url::parse(&conf.websockets.bitstamp.as_str())?;
     let (ws_stream, _) = connect_async(url).await?;
-    println!("Bitstamp WebSocket handshake has been successfully completed.");
+    info!("Bitstamp WebSocket handshake has been successfully completed.");
 
     let (mut write, read) = ws_stream.split();
 
     // send json to ws to select channel
     let buf = "{\"event\":\"bts:subscribe\",\"data\":{\"channel\":\"order_book_btcusd\"}}";
-    write.send(buf.into()).await.unwrap();
+    write.send(buf.into()).await?;
     let read_future = {
         read.for_each(|message| async {
             // let data = message.unwrap().into_data();
-            let msg = match message.unwrap() {
+            let msg = match message.expect("Data was not message!") {
                 Message::Text(s) => { s }
-                _ => { panic!() }
+                _ => {
+                    error!("Websocket message was not a string!");
+                    return;
+                    // panic!()
+                }
             };
             let parsed: serde_json::Value = serde_json::from_str(&msg).expect("Can't parse to JSON");
 
@@ -85,12 +88,11 @@ pub async fn bitstamp_orderbook_client(
             }
             if !skip {
                 let item = Summary {
-                    spread: 10.0,
+                    spread: asks_lk[0].price - bids_lk[0].price,
                     bids: (*bids_lk).clone(),
                     asks: (*asks_lk).clone(),
                 };
                 while tx_pool.lock().await.len() == 0 {
-                    println!("tx_pool is empty...");
                     sleep(Duration::from_millis(100)).await;
                 }
                 {
@@ -110,7 +112,7 @@ pub async fn bitstamp_orderbook_client(
                     }
                 }
 
-                println!("tx_pool length : {}", tx_pool.lock().await.len());
+                info!("tx_pool length : {}", tx_pool.lock().await.len());
             }
             // tokio::io::stdout().write_all(&data.iter().map(|&x| x.timestamp).collect::<Vec<_>>()).await.unwrap();
         })
