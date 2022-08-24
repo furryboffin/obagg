@@ -1,8 +1,9 @@
 pub use server::server;
 pub use client::client;
 
-mod binance_orderbook_client;
-mod bitstamp_orderbook_client;
+mod aggregator;
+mod binance;
+mod bitstamp;
 mod client;
 mod config;
 // mod error;

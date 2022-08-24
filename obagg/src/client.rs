@@ -37,7 +37,6 @@ pub async fn client(conf: config::Server) -> Result<(), Box<dyn Error>> {
     );
     // now the response is a stream
     let mut response = client.book_summary_stream(request).await?.into_inner();
-
     // listening to stream
     while let Some(res) = response.message().await? {
         print!("{esc}c", esc = 27 as char);

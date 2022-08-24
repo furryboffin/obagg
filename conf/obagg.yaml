@@ -10,3 +10,5 @@ depth: 20
 websockets:
   binance: "wss://stream.binance.com:9443"
   bitstamp: "wss://ws.bitstamp.net"
+apis:
+  binance: "https://api.binance.com"

@@ -8,11 +8,17 @@ pub struct Websockets {
 }
 
 #[derive(Deserialize)]
+pub struct Apis {
+    pub binance: String,
+}
+
+#[derive(Deserialize)]
 pub struct Server {
     pub bind_address: SocketAddr,
     pub depth: u16,
     pub ticker: String,
     pub websockets: Websockets,
+    pub apis: Apis,
 }
 
 fn file_from_env(var: &str) -> Result<std::fs::File, Box<dyn Error + Sync + Send>> {
