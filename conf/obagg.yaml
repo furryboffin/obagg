@@ -5,7 +5,7 @@
 
 # bind_address: "[::1]:50051"
 bind_address: "127.0.0.1:50051"
-ticker: btcusdt
+ticker: btcusdc
 depth: 20
 websockets:
   binance: "wss://stream.binance.com:9443"

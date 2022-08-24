@@ -40,16 +40,16 @@ pub async fn client(conf: config::Server) -> Result<(), Box<dyn Error>> {
     // listening to stream
     while let Some(res) = response.message().await? {
         print!("{esc}c", esc = 27 as char);
-        println!("_____________________________________________________________\n");
-        println!("        {}          SPREAD = {:?}", conf.ticker, res.spread);
-        println!("_____________________________________________________________");
-        println!("                              |                              ");
-        println!("             Bids             |             Asks             ");
-        println!("______________________________|______________________________");
+        println!("___________________________________________________________________________\n");
+        println!("           {}             SPREAD = {:.8}", conf.ticker, res.spread);
+        println!("___________________________________________________________________________");
+        println!("                                     |                                     ");
+        println!("               Bids                  |                 Asks                ");
+        println!("_____________________________________|_____________________________________");
         for it in res.bids.iter().zip(res.asks.iter()) {
             let (bid, ask) = it;
             println!(
-                "{}  {}{:.5} @ {:5.1}  | {}{:.5} @ {:5.1}   {}",
+                "{}  {}{:.6} @ {:5.8}  | {}{:.6} @ {:5.8}   {}",
                 bid.exchange,
                 if bid.amount>=10.0 { "" } else { " " },
                 bid.amount,
