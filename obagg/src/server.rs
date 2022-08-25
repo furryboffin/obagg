@@ -61,7 +61,7 @@ impl orderbook::orderbook_aggregator_server::OrderbookAggregator for OrderbookAg
     ) -> OrderbookAggregatorResult<Self::BookSummaryStreamStream> {
         info!("OrderbookAggregatorServer::server_streaming_orderbook_aggregator");
         info!("\tclient connected from: {:?}", req.remote_addr());
-        let (tx, rx) = mpsc::channel(128);
+        let (tx, rx) = mpsc::channel(1024);
         let (oneshot_tx, mut oneshot_rx) = mpsc::unbounded_channel::<usize>();
         let tx_pool_pop = self.tx_pool.clone();
         let id = Uuid::new_v4();
@@ -103,7 +103,7 @@ pub async fn server(conf: config::Server) -> Result<(), Box<dyn Error>> {
     // let tx_pool = Vec::<mpsc::Sender<Result<Summary, Status>>>::with_capacity(1);
     let tx_pool = HashMap::new();
     let tx_pool = Arc::new(Mutex::new(tx_pool));
-    let (orderbook_ws_tx, mut aggregator_rx) = mpsc::channel::<Result<Summary, Status>>(128); // or bounded
+    let (orderbook_ws_tx, mut aggregator_rx) = mpsc::channel::<Result<Summary, Status>>(1024); // or bounded
     let server = OrderbookAggregatorServer {tx_pool: tx_pool.clone()};
     let mut futures = vec![];
 
