@@ -1,4 +1,6 @@
 pub use server::server;
+pub use server::Orderbook;
+
 pub use client::client;
 
 mod aggregator;

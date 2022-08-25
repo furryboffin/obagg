@@ -8,11 +8,16 @@ use tokio_tungstenite::{connect_async, tungstenite::Message};
 use tokio::{sync::{mpsc, Mutex}, time::{sleep, Duration}};
 use tonic::Status;
 
-use crate::{ config, orderbook::{Level, Summary} };
+use crate::{config, orderbook::{Level, Summary}, server};
 
 // JRF TODO, turn this into a struct, the data in the struct will be the bids and asks
 // since we want this struct to manage its own data we would need to define a new() function
 // that creates the struct
+
+pub struct Orderbook {
+    pub bids: BTreeMap<Decimal,f64>,
+    pub asks: BTreeMap<Decimal,f64>,
+}
 
 async fn get_snapshot(
     conf: &config::Server,
@@ -59,7 +64,7 @@ async fn get_snapshot(
 
 pub async fn consume_orderbooks(
     conf: &config::Server,
-    tx: mpsc::Sender<Result<Summary, Status>>
+    tx: mpsc::Sender<Result<server::Orderbook, Status>>
 ) -> Result<(), Box<dyn Error>> {
     // Binance requires that the ticker and params be specified in the url. First we must construct
     // the url.
@@ -204,6 +209,7 @@ pub async fn consume_orderbooks(
 
                 if !skip {
                     // info!("hash map size: bids {}, asks {}",bids.len(), asks.len());
+                    // JRF TODO, move this into function
                     let mut bids_reduced = bids.clone();
                     let mut asks_reduced = asks.clone();
                     if bids.len() > usize::from(conf.depth) {
@@ -219,38 +225,42 @@ pub async fn consume_orderbooks(
                         asks_reduced.split_off(&akey);
                     }
                     // info!("hash map size after split: bids {}, asks {}",bids.len(), asks.len());
+                    // let orderbook = Orderbook { bids: bids_reduced, asks: asks_reduced };
+                    let mut orderbook = server::Orderbook::Binance(Orderbook {
+                        bids: bids_reduced,
+                        asks: asks_reduced,
+                    });
+                    // let mut bids_out = Vec::<Level>::with_capacity(conf.depth.into());
 
-                    let mut bids_out = Vec::<Level>::with_capacity(conf.depth.into());
+                    // let mut asks_out = Vec::<Level>::with_capacity(conf.depth.into());
 
-                    let mut asks_out = Vec::<Level>::with_capacity(conf.depth.into());
-
-                    let mut bids_iter = bids_reduced.iter().rev();
-                    while let Some((level, amount)) = bids_iter.next() {
-                        bids_out.push(
-                            Level {
-                                exchange: "binance".to_string(),
-                                price: level.to_string().parse::<f64>().unwrap(),
-                                amount: *amount,
-                            }
-                        );
-                    }
-                    let mut asks_iter = asks_reduced.iter();
-                    while let Some((level, amount)) = asks_iter.next() {
-                        asks_out.push(
-                            Level {
-                                exchange: "binance".to_string(),
-                                price: level.to_string().parse::<f64>().unwrap(),
-                                amount: *amount,
-                            }
-                        );
-                    }
-                    // info!("binance spread = {}", asks_out[0].price - bids_out[0].price);
-                    let item = Summary {
-                        spread: asks_out[0].price - bids_out[0].price,
-                        bids: bids_out.clone(),
-                        asks: asks_out.clone(),
-                    };
-                    if let Err(_item) = tx.send(Result::<Summary, Status>::Ok(item)).await {
+                    // let mut bids_iter = bids_reduced.iter().rev();
+                    // while let Some((level, amount)) = bids_iter.next() {
+                    //     bids_out.push(
+                    //         Level {
+                    //             exchange: "binance".to_string(),
+                    //             price: level.to_string().parse::<f64>().unwrap(),
+                    //             amount: *amount,
+                    //         }
+                    //     );
+                    // }
+                    // let mut asks_iter = asks_reduced.iter();
+                    // while let Some((level, amount)) = asks_iter.next() {
+                    //     asks_out.push(
+                    //         Level {
+                    //             exchange: "binance".to_string(),
+                    //             price: level.to_string().parse::<f64>().unwrap(),
+                    //             amount: *amount,
+                    //         }
+                    //     );
+                    // }
+                    // // info!("binance spread = {}", asks_out[0].price - bids_out[0].price);
+                    // let item = Summary {
+                    //     spread: asks_out[0].price - bids_out[0].price,
+                    //     bids: bids_out.clone(),
+                    //     asks: asks_out.clone(),
+                    // };
+                    if let Err(_item) = tx.send(Result::<server::Orderbook, Status>::Ok(orderbook)).await {
                         println!("Error sending bitstamp orderbook item.");
                     };
                 }
