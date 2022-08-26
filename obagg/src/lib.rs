@@ -1,7 +1,5 @@
-pub use server::server;
-pub use server::Orderbook;
-
 pub use client::client;
+pub use server::server;
 
 mod aggregator;
 mod binance;
@@ -14,14 +12,3 @@ mod server;
 pub mod orderbook {
     tonic::include_proto!("orderbook");
 }
-
-// #[derive(Debug)]
-// pub struct Error(String);
-
-// impl std::fmt::Display for Error {
-//     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-//         write!(f, "{}", self.0)
-//     }
-// }
-
-// impl std::error::Error for Error {}

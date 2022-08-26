@@ -5,10 +5,14 @@
 
 # bind_address: "[::1]:50051"
 bind_address: "127.0.0.1:50051"
-ticker: ethbtc
+ticker: ltcbtc
 depth: 20
-websockets:
-  binance: "wss://stream.binance.com:9443"
-  bitstamp: "wss://ws.bitstamp.net"
-apis:
-  binance: "https://api.binance.com"
+exchanges:
+  binance:
+    enable: true
+    websocket: "wss://stream.binance.com:9443"
+    api: "https://api.binance.com"
+  bitstamp:
+    enable: true
+    websocket: "wss://ws.bitstamp.net"
+    api: ""

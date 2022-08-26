@@ -1,26 +1,23 @@
-use futures::Future;
-use futures::future::*;
+use futures::{future::*, Future};
 use log::info;
 use rust_decimal::Decimal;
-use std::collections::BTreeMap;
-use std::collections::HashMap;
-use std::error::Error;
-use std::task::Context;
-use std::task::Poll;
-use std::{pin::Pin, sync::Arc};
+use std::{
+    collections::{BTreeMap, HashMap},
+    error::Error,
+    pin::Pin,
+    sync::Arc,
+    task::{Context, Poll},
+};
 use tokio::sync::{mpsc, Mutex};
-use uuid::Uuid;
-
-// use tokio_stream::{Stream, wrappers::ReceiverStream};
 use tokio_stream::Stream;
 use tonic::{transport::Server, Request, Response, Status};
+use uuid::Uuid;
 
 use crate::{
     aggregator,
-    config,
-    // error,
     binance,
     bitstamp,
+    config,
     orderbook,
     orderbook::{Empty, Level, Summary},
 };
@@ -29,22 +26,53 @@ type OrderbookAggregatorResult<T> = Result<Response<T>, Status>;
 type ResponseStream = Pin<Box<dyn Stream<Item = Result<Summary, Status>> + Send>>;
 type ProducerPool = Arc<Mutex<HashMap<Uuid, mpsc::Sender<Result<Summary, Status>>>>>;
 
-pub enum Orderbook {
-    Binance(binance::Orderbook),
-    Bitstamp(bitstamp::Orderbook),
+#[derive(Clone, Debug)]
+pub struct AggregatedOrderbook {
+    pub bids: BTreeMap<Decimal, Level>,
+    pub asks: BTreeMap<Decimal, Level>,
 }
+
+impl AggregatedOrderbook {
+    pub fn new() -> Self {
+        Self {
+            bids: BTreeMap::new(),
+            asks: BTreeMap::new(),
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct Orderbook {
+    pub bids: BTreeMap<Decimal, f64>,
+    pub asks: BTreeMap<Decimal, f64>,
+}
+
 impl Orderbook {
+    pub fn new() -> Self {
+        Self {
+            bids: BTreeMap::new(),
+            asks: BTreeMap::new(),
+        }
+    }
+}
+
+pub enum Orderbooks {
+    Binance(Orderbook),
+    Bitstamp(Orderbook),
+}
+
+impl Orderbooks {
     pub fn bids(&mut self) -> &mut BTreeMap<Decimal, f64> {
         match self {
-            Orderbook::Binance(b) => &mut b.bids,
-            Orderbook::Bitstamp(b) => &mut b.bids,
+            Self::Binance(b) => &mut b.bids,
+            Self::Bitstamp(b) => &mut b.bids,
         }
     }
 
     pub fn asks(&mut self) -> &mut BTreeMap<Decimal, f64> {
         match self {
-            Orderbook::Binance(b) => &mut b.asks,
-            Orderbook::Bitstamp(b) => &mut b.asks,
+            Self::Binance(b) => &mut b.asks,
+            Self::Bitstamp(b) => &mut b.asks,
         }
     }
 }
@@ -97,7 +125,7 @@ impl orderbook::orderbook_aggregator_server::OrderbookAggregator for OrderbookAg
                 info!("Remove tx pool entry...");
                 // JRF TODO, change this to hashmap
                 tx_pool.remove(&id);
-            };
+            }
         });
         {
             let mut tx_pool = self.tx_pool.lock().await;
@@ -107,12 +135,10 @@ impl orderbook::orderbook_aggregator_server::OrderbookAggregator for OrderbookAg
         // let output_stream = ReceiverStream::new(rx);
         let output_stream = DropReceiver {
             chan: oneshot_tx,
-            inner: rx
+            inner: rx,
         };
         info!("created output_stream...");
-        let res = Response::new(
-            Box::pin(output_stream) as Self::BookSummaryStreamStream
-        );
+        let res = Response::new(Box::pin(output_stream) as Self::BookSummaryStreamStream);
         info!("created response...");
 
         Ok(res)
@@ -125,24 +151,45 @@ pub async fn server(conf: config::Server) -> Result<(), Box<dyn Error>> {
     // let tx_pool = Vec::<mpsc::Sender<Result<Summary, Status>>>::with_capacity(1);
     let tx_pool = HashMap::new();
     let tx_pool = Arc::new(Mutex::new(tx_pool));
-    let (orderbook_ws_tx, mut aggregator_rx) = mpsc::channel::<Result<Orderbook, Status>>(1024); // or bounded
-    let server = OrderbookAggregatorServer {tx_pool: tx_pool.clone()};
+    let (orderbook_ws_tx, mut aggregator_rx) = mpsc::channel::<Result<Orderbooks, Status>>(1024); // or bounded
+    let server = OrderbookAggregatorServer {
+        tx_pool: tx_pool.clone(),
+    };
     let mut futures = vec![];
 
-    futures.push(
-        Box::pin(
-            Server::builder()
-                .add_service(orderbook::orderbook_aggregator_server::OrderbookAggregatorServer::new(server))
-                .serve(conf.bind_address)
-                .map_err(|e| e.into())
-        ) as Pin<Box<dyn Future<Output = Result<(), Box<dyn Error>>>>>
+    futures.push(Box::pin(
+        Server::builder()
+            .add_service(
+                orderbook::orderbook_aggregator_server::OrderbookAggregatorServer::new(server),
+            )
+            .serve(conf.bind_address)
+            .map_err(|e| e.into()),
+    )
+        as Pin<Box<dyn Future<Output = Result<(), Box<dyn Error>>>>>);
+    info!(
+        "Started gRPC Server... Bind Address: {:?}",
+        &conf.bind_address
     );
-    info!("Started gRPC Server... Bind Address: {:?}", &conf.bind_address);
 
-    // JRF TODO move the two orderbook clients into spawned threads to help speed up processing if required.
-    futures.push( Box::pin( binance::consume_orderbooks(&conf,orderbook_ws_tx.clone()) ) as Pin<Box<dyn Future<Output = Result<(), Box<dyn Error>>>>> );
-    futures.push( Box::pin( bitstamp::consume_orderbooks(&conf, orderbook_ws_tx) ) as Pin<Box<dyn Future<Output = Result<(), Box<dyn Error>>>>> );
-    futures.push( Box::pin( aggregator::aggregate_orderbooks(&conf, &mut aggregator_rx, tx_pool.clone()) ) as Pin<Box<dyn Future<Output = Result<(), Box<dyn Error>>>>> );
+    // JRF TODO move the following tasks into spawned threads to help speed up processing if required.
+    if conf.exchanges.binance.enable {
+        futures.push(
+            Box::pin(binance::consume_orderbooks(&conf, orderbook_ws_tx.clone()))
+                as Pin<Box<dyn Future<Output = Result<(), Box<dyn Error>>>>>,
+        );
+    }
+    if conf.exchanges.bitstamp.enable {
+        futures.push(
+            Box::pin(bitstamp::consume_orderbooks(&conf, orderbook_ws_tx))
+                as Pin<Box<dyn Future<Output = Result<(), Box<dyn Error>>>>>,
+        );
+    }
+    futures.push(Box::pin(aggregator::aggregate_orderbooks(
+        &conf,
+        &mut aggregator_rx,
+        tx_pool.clone(),
+    ))
+        as Pin<Box<dyn Future<Output = Result<(), Box<dyn Error>>>>>);
     for r in futures::future::join_all(futures).await {
         if let Err(e) = r {
             return Err(e);

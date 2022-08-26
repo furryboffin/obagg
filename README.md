@@ -32,7 +32,8 @@ docker run -t obagg
 
 ## Running Obagg locally
 
-Obagg is dependent on the Rust crate `tonic`, which in turn relies on the `protoc` protobuf compiler. This can be installed locally:
+Obagg is dependent on the Rust crate `tonic`, which in turn relies on the
+`protoc` protobuf compiler. This can be installed locally:
 
 ```
 apt update && apt upgrade -y
@@ -51,10 +52,51 @@ cargo run --bin obagg -- --no-syslog grpc
 cargo run --bin obagg -- --no-syslog client
 ```
 
-You will probably want to run the grpc server and the client in different terminals for simplicity.
+You will probably want to run the grpc server and the client in different
+terminals for simplicity.
 
 
 ## Configuration Options
 
 In the `/conf` folder you will find an example configuration file: `obagg.yaml`.
-to change the market you can edit the `ticker` value. The depth of the aggregated orderbook is set by the `depth` value and the list of `websockets` that are used is also configurable, although this version of the server is only designed to work with these two specific exchanges at this time. Future adaptation of the server would aim to make it more generic and allow for several more exchanges to be added.
+to change the market you can edit the `ticker` value. The depth of the
+aggregated orderbook is set by the `depth` value and the list of `websockets`
+that are used is also configurable, although this version of the server is only
+designed to work with these two specific exchanges at this time. Future
+adaptation of the server would aim to make it more generic and allow for several
+more exchanges to be added.
+
+## Future Improvements
+
+The initial version is very rudimentary, much can be done to improve the server:
+
+- Currently the exchange websocket consumers run in async function calls in the
+main server thread. If one found that more resources were necessary to cope with
+a larger number of client connections, one could spawn threads for them.
+
+- If a websocket consumer returns an error the server will stop working. There
+are several ways to address this issue. A simple approach would be to simply
+handle returned errors and relaunch all the tasks if any of them fail. A better
+approach might be to add a health monitor service that checks the health of the
+consumers and the aggregator, relaunching them automatically in case they have
+issues. It is also possible to have the tasks themselves manage their own state,
+internally detecting any errors and relaunching internally when necessary. It
+might be prudent to use a hybrid approach such that wherever simple the task
+can manage it's own failures, but anything more terminal can be passed back as
+an error which can then be handled by the main thread.
+
+- parts of the code would benefit from being pulled out into helper functions
+and more unit tests should be added for the various helper functions.
+
+- Unit tests for the consumers can be added as well as the aggregator.
+
+- Errors could be improved by using custom Error enums and converting all other
+  errors into our custom type for top level handling.
+
+- Binance and Bitstamp websocket message structures should be defined in custom
+  structs. Error handling can then be moved into the struct implementation.
+
+- Rather than defining the ticker in the conf file and restricting the server
+  to serve only one ticker, allow the client to send a message to the gRPC
+  server to select the ticker that they want. This would require adding inbound 
+  message handling to the gRPC server implementation.

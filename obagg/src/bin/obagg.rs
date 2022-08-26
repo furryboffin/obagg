@@ -49,8 +49,7 @@ fn file_from_env(var: &str) -> Result<std::fs::File, Box<dyn std::error::Error +
 }
 
 fn read_config<T: DeserializeOwned>() -> T {
-    let file = file_from_env("AGGREGATED_ORDERBOOK_CONFIG").expect(
-        "Error when opening file pointed to by AGGREGATED_ORDERBOOK_CONFIG env variable",
-    );
+    let file = file_from_env("AGGREGATED_ORDERBOOK_CONFIG")
+        .expect("Error when opening file pointed to by AGGREGATED_ORDERBOOK_CONFIG env variable");
     serde_yaml::from_reader(file).expect("Error parsing configuration file")
 }
