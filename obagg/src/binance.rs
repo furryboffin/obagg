@@ -9,64 +9,8 @@ use tonic::Status;
 
 use crate::{
     config,
-    server::{Orderbook, Orderbooks},
+    definitions::{Orderbook, Orderbooks},
 };
-
-// Get a snapshot of the orderbook from the binance API server. This async function returns a promise
-// that resolves to the lastUpdateId returned with the orderbook data. The bids and asks are stored
-// in two BTreeMaps passed in
-async fn get_snapshot(conf: &config::Server, orderbook: &mut Orderbook) -> u64 {
-    let api_base = url::Url::parse(&conf.exchanges.binance.api.as_str()).unwrap();
-    let api_channel = format!(
-        "/api/v3/depth?symbol={}&limit={}",
-        &conf.ticker.to_uppercase(),
-        5000
-    );
-    let api_url = api_base.join(api_channel.as_str()).unwrap();
-    let snapshot = reqwest::get(api_url).await.unwrap().text().await.unwrap();
-
-    let snapshot: serde_json::Value = serde_json::from_str(&snapshot).expect("Can't parse to JSON");
-    {
-        // let mut orderbook.bids = bids_arc.lock().await;
-        orderbook.bids.clear();
-        orderbook.asks.clear();
-        let bids_snapshot = snapshot["bids"]
-            .as_array()
-            .expect("Can't parse snapshot.bids");
-        let mut bids_iter = bids_snapshot.into_iter(); //.take(conf.depth.into());
-
-        while let Some(bid) = bids_iter.next() {
-            orderbook.bids.insert(
-                bid[0]
-                    .as_str()
-                    .unwrap()
-                    .to_string()
-                    .parse::<Decimal>()
-                    .unwrap(),
-                bid[1].as_str().unwrap().to_string().parse::<f64>().unwrap(),
-            );
-        }
-        let asks_snapshot = snapshot["asks"]
-            .as_array()
-            .expect("Can't parse snapshot.bids");
-        let mut asks_iter = asks_snapshot.into_iter(); //.take(conf.depth.into());
-
-        while let Some(ask) = asks_iter.next() {
-            orderbook.asks.insert(
-                ask[0]
-                    .as_str()
-                    .unwrap()
-                    .to_string()
-                    .parse::<Decimal>()
-                    .unwrap(),
-                ask[1].as_str().unwrap().to_string().parse::<f64>().unwrap(),
-            );
-        }
-        snapshot["lastUpdateId"]
-            .as_u64()
-            .expect("lastUpdateId missing from snapshot json.")
-    }
-}
 
 // Open a websocket connection and process the update messages into a locally stored orderbook.
 // the following set of rules are applied:
@@ -86,7 +30,6 @@ pub async fn consume_orderbooks(
     conf: &config::Server,
     tx: mpsc::Sender<Result<Orderbooks, Status>>,
 ) -> Result<(), Box<dyn Error>> {
-
     // Binance requires that the ticker and params be specified in the url. First we must construct
     // the url.
     let orderbook_arc = Arc::new(Mutex::new(Orderbook::new()));
@@ -137,7 +80,10 @@ pub async fn consume_orderbooks(
                         return;
                     }
 
-                    if *is_first_lk && end_u <= *last_update_id + 1 && start_u >= *last_update_id + 1 {
+                    if *is_first_lk
+                        && end_u <= *last_update_id + 1
+                        && start_u >= *last_update_id + 1
+                    {
                         *is_first_lk = false;
                     } else if *is_first_lk {
                         *last_update_id = get_snapshot(conf, &mut orderbook).await;
@@ -241,4 +187,57 @@ pub async fn consume_orderbooks(
     };
     read_future.await;
     Ok(())
+}
+
+// Get a snapshot of the orderbook from the binance API server. This async function returns a promise
+// that resolves to the lastUpdateId returned with the orderbook data. The bids and asks are stored
+// in two BTreeMaps passed in
+async fn get_snapshot(conf: &config::Server, orderbook: &mut Orderbook) -> u64 {
+    let api_base = url::Url::parse(&conf.exchanges.binance.api.as_str()).unwrap();
+    let api_channel = format!(
+        "/api/v3/depth?symbol={}&limit={}",
+        &conf.ticker.to_uppercase(),
+        5000
+    );
+    let api_url = api_base.join(api_channel.as_str()).unwrap();
+    let snapshot = reqwest::get(api_url).await.unwrap().text().await.unwrap();
+
+    let snapshot: serde_json::Value = serde_json::from_str(&snapshot).expect("Can't parse to JSON");
+    orderbook.bids.clear();
+    orderbook.asks.clear();
+    let bids_snapshot = snapshot["bids"]
+        .as_array()
+        .expect("Can't parse snapshot.bids");
+    let mut bids_iter = bids_snapshot.into_iter(); //.take(conf.depth.into());
+
+    while let Some(bid) = bids_iter.next() {
+        orderbook.bids.insert(
+            bid[0]
+                .as_str()
+                .unwrap()
+                .to_string()
+                .parse::<Decimal>()
+                .unwrap(),
+            bid[1].as_str().unwrap().to_string().parse::<f64>().unwrap(),
+        );
+    }
+    let asks_snapshot = snapshot["asks"]
+        .as_array()
+        .expect("Can't parse snapshot.bids");
+    let mut asks_iter = asks_snapshot.into_iter(); //.take(conf.depth.into());
+
+    while let Some(ask) = asks_iter.next() {
+        orderbook.asks.insert(
+            ask[0]
+                .as_str()
+                .unwrap()
+                .to_string()
+                .parse::<Decimal>()
+                .unwrap(),
+            ask[1].as_str().unwrap().to_string().parse::<f64>().unwrap(),
+        );
+    }
+    snapshot["lastUpdateId"]
+        .as_u64()
+        .expect("lastUpdateId missing from snapshot json.")
 }

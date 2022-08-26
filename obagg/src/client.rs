@@ -33,9 +33,9 @@ pub async fn client(conf: config::Server) -> Result<(), Box<dyn Error>> {
 
     let mut client = OrderbookAggregatorClient::new(channel);
     let request = tonic::Request::new(Empty {});
-    // now the response is a stream
     let mut response = client.book_summary_stream(request).await?.into_inner();
-    // listening to stream
+
+    // listen to stream
     while let Some(res) = response.message().await? {
         print!("{esc}c", esc = 27 as char);
         println!("_____________________________________________________________________________\n");
@@ -52,7 +52,7 @@ pub async fn client(conf: config::Server) -> Result<(), Box<dyn Error>> {
             println!(
                 "{}{}  {}{:.6} @ {:5.8}  | {}{:.6} @ {:5.8}   {}",
                 bid.exchange,
-                if bid.exchange == "binance" {" "} else {""},
+                if bid.exchange == "binance" { " " } else { "" },
                 if bid.amount >= 100.0 {
                     ""
                 } else if bid.amount >= 10.0 {
@@ -76,5 +76,4 @@ pub async fn client(conf: config::Server) -> Result<(), Box<dyn Error>> {
         }
     }
     Ok(())
-    // client.close_summary_stream();
 }

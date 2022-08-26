@@ -1,7 +1,6 @@
 mod log;
 use ::log::error;
 use serde::de::DeserializeOwned;
-// use serde::Deserialize;
 use structopt::StructOpt;
 
 #[derive(StructOpt)]
@@ -27,18 +26,16 @@ async fn main() {
             log::init("obagg-server".to_string(), opt.disable_syslog);
             if let Err(e) = obagg::server(read_config()).await {
                 error!("Error returned from Server : {}", e);
-                println!("Error returned from Server : {}", e);
             }
         }
         Subcommand::Client => {
             log::init("obagg-client".to_string(), opt.disable_syslog);
             if let Err(e) = obagg::client(read_config()).await {
                 error!("Error returned from Server : {}", e);
-                println!("Error returned from Server : {}", e);
             }
         }
         Subcommand::Version => {
-            println!("OBAggregator {}", env!("CARGO_PKG_VERSION"));
+            println!("Obagg Orderbook Aggregator {}", env!("CARGO_PKG_VERSION"));
         }
     }
 }
@@ -51,5 +48,5 @@ fn file_from_env(var: &str) -> Result<std::fs::File, Box<dyn std::error::Error +
 fn read_config<T: DeserializeOwned>() -> T {
     let file = file_from_env("AGGREGATED_ORDERBOOK_CONFIG")
         .expect("Error when opening file pointed to by AGGREGATED_ORDERBOOK_CONFIG env variable");
-    serde_yaml::from_reader(file).expect("Error parsing configuration file")
+    serde_yaml::from_reader(file).expect("Error parsing configuration file!")
 }

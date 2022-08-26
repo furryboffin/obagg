@@ -1,9 +1,5 @@
 use rust_decimal::Decimal;
-use std::{
-    collections::{HashMap},
-    error::Error,
-    sync::Arc,
-};
+use std::{collections::HashMap, error::Error, sync::Arc};
 use tokio::{
     sync::{mpsc, Mutex},
     time::{sleep, Duration},
@@ -13,8 +9,8 @@ use uuid::Uuid;
 
 use crate::{
     config,
+    definitions::{AggregatedOrderbook, Orderbook, Orderbooks},
     orderbook::{Level, Summary},
-    server::{AggregatedOrderbook, Orderbook, Orderbooks},
 };
 
 pub async fn aggregate_orderbooks(
@@ -22,8 +18,6 @@ pub async fn aggregate_orderbooks(
     rx: &mut mpsc::Receiver<Result<Orderbooks, Status>>,
     tx_pool: Arc<Mutex<HashMap<Uuid, mpsc::Sender<Result<Summary, Status>>>>>,
 ) -> Result<(), Box<dyn Error>> {
-    // let bids_arc = Arc::new(Mutex::new(BTreeMap::new()));
-    // let asks_arc = Arc::new(Mutex::new(BTreeMap::new()));
     let mut binance_ob_cache = Orderbook::new();
     let mut bitstamp_ob_cache = Orderbook::new();
 
@@ -36,13 +30,11 @@ pub async fn aggregate_orderbooks(
             }
 
             let mut aggregated_orderbook = AggregatedOrderbook::new();
-            // let mut aggregated_asks: BTreeMap<Decimal, Level> = BTreeMap::new();
             let tx_pool_locked = tx_pool.lock().await;
             let mut tx_pool_iter = tx_pool_locked.iter();
             let mut futures = vec![];
 
             // match the type of incoming message and cache it in the appropriate book type
-            // JRF TODO, figure out how to store the exchange for the cached orderbooks.
             match orderbook {
                 Orderbooks::Binance(binance_orderbook) => {
                     binance_ob_cache = binance_orderbook;
@@ -102,12 +94,14 @@ pub async fn aggregate_orderbooks(
             }
 
             let mut aggregated_orderbook_reduced = aggregated_orderbook.clone();
-            // let mut asks_reduced = aggregated_orderbook.asks.clone();
+
             if aggregated_orderbook_reduced.bids.len() > usize::from(conf.depth) {
                 let bkeys: Vec<&Decimal> = Vec::from_iter(aggregated_orderbook_reduced.bids.keys());
                 let bkey = bkeys[bkeys.len() - usize::from(conf.depth)].clone();
-                aggregated_orderbook_reduced.bids = aggregated_orderbook_reduced.bids.split_off(&bkey);
+                aggregated_orderbook_reduced.bids =
+                    aggregated_orderbook_reduced.bids.split_off(&bkey);
             }
+
             if aggregated_orderbook_reduced.asks.len() > usize::from(conf.depth) {
                 let akeys: Vec<&Decimal> = Vec::from_iter(aggregated_orderbook_reduced.asks.keys());
                 let akey = akeys[usize::from(conf.depth)].clone();

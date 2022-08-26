@@ -9,7 +9,7 @@ use tonic::Status;
 
 use crate::{
     config,
-    server::{Orderbook, Orderbooks},
+    definitions::{Orderbook, Orderbooks},
 };
 
 pub async fn consume_orderbooks(

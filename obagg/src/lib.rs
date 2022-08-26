@@ -6,7 +6,8 @@ mod binance;
 mod bitstamp;
 mod client;
 mod config;
-// mod error;
+mod definitions;
+mod grpc;
 mod server;
 
 pub mod orderbook {
