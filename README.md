@@ -60,11 +60,22 @@ terminals for simplicity.
 
 In the `/conf` folder you will find an example configuration file: `obagg.yaml`.
 to change the market you can edit the `ticker` value. The depth of the
-aggregated orderbook is set by the `depth` value and the list of `websockets`
+aggregated orderbook is set by the `depth` value and the list of `exchanges`
 that are used is also configurable, although this version of the server is only
 designed to work with these two specific exchanges at this time. Future
 adaptation of the server would aim to make it more generic and allow for several
-more exchanges to be added.
+more exchanges to be added. Lastly one can set `identical_level_order` to be
+true or false depending on whether you want want identical levels to be ordered
+with larger amounts towards or away from the middle of the book.
+
+When different exchanges have identical levels in their books we must choose
+the order. Setting this to true will order higher amounts closer to the center
+of the orderbook. If using this aggregated orderbook to decide which exchange
+to place orders for strategies such as arbitrage or market making, I would
+set the paramter to be true, positioning larger liquidity closer to the centre
+of the book. Moreover, speed is of the essence in such strategies and the fewer
+levels we need to traverse to calculate predicted profit margins for specific
+sized orders, the better.
 
 ## Future Improvements
 
@@ -75,8 +86,8 @@ main server thread. If one found that more resources were necessary to cope with
 a larger number of client connections, one could spawn threads for them.
 
 - If a websocket consumer returns an error the server will stop working. There
-are several ways to address this issue. A simple approach would be to simply
-handle returned errors and relaunch all the tasks if any of them fail. A better
+are several ways to address this issue. A simple approach would be to handle
+returned errors and relaunch all the tasks if any of them fail. A better
 approach might be to add a health monitor service that checks the health of the
 consumers and the aggregator, relaunching them automatically in case they have
 issues. It is also possible to have the tasks themselves manage their own state,

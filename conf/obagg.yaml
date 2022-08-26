@@ -6,7 +6,7 @@
 # bind_address: "[::1]:50051"
 bind_address: "127.0.0.1:50051"
 ticker: ltcbtc
-depth: 20
+depth: 30
 exchanges:
   binance:
     enable: true
@@ -16,3 +16,13 @@ exchanges:
     enable: true
     websocket: "wss://ws.bitstamp.net"
     api: ""
+
+# When different exchanges have identical levels in their books we must choose
+# the order. Setting this to true will order higher amounts closer to center
+# of the orderbook. If using this aggregated orderbook to decide which exchange
+# to place orders for strategies such as arbitrage or market making, I would
+# set the paramter to be true, positioning larger liquidity closer to the centre
+# of the book. Moreover, speed is of the essence in such strategies and the fewer
+# levels we need to traverse to calculate predicted profit margins for specific
+# sized orders, the better.
+identical_level_order: true

@@ -1,8 +1,7 @@
 use futures::{SinkExt, StreamExt};
 use log::{error, info};
-use rust_decimal::Decimal;
 use serde_json;
-use std::{collections::BTreeMap, error::Error};
+use std::error::Error;
 use tokio::sync::mpsc;
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 use tonic::Status;
@@ -10,6 +9,7 @@ use tonic::Status;
 use crate::{
     config,
     definitions::{Orderbook, Orderbooks},
+    utils,
 };
 
 pub async fn consume_orderbooks(
@@ -32,10 +32,7 @@ pub async fn consume_orderbooks(
 
     let read_future = {
         read.for_each(|message| async {
-            let mut orderbook = Orderbooks::Bitstamp(Orderbook {
-                bids: BTreeMap::new(),
-                asks: BTreeMap::new(),
-            });
+            let mut orderbook = Orderbooks::Bitstamp(Orderbook::new());
             // JRF TODO, we must handle these exceptions where data was not a message.
             // currently the server panics! Could this be caused by running two different binaries?
             let msg = match message.expect("Data was not message!") {
@@ -52,31 +49,21 @@ pub async fn consume_orderbooks(
 
             if let Some(bids_in) = parsed["data"]["bids"].as_array() {
                 skip = false;
-                let mut bids_iter = bids_in.into_iter().take(conf.depth.into());
+                let mut bids_iter = bids_in.into_iter().take(conf.depth);
                 while let Some(bid) = bids_iter.next() {
                     orderbook.bids().insert(
-                        bid[0]
-                            .as_str()
-                            .unwrap()
-                            .to_string()
-                            .parse::<Decimal>()
-                            .unwrap(),
-                        bid[1].as_str().unwrap().to_string().parse::<f64>().unwrap(),
+                        utils::key_from_value(bid),
+                        utils::level_from_value(bid, "bitstamp"),
                     );
                 }
             }
             if let Some(asks_in) = parsed["data"]["asks"].as_array() {
                 skip = false;
-                let mut asks_iter = asks_in.into_iter().take(conf.depth.into());
+                let mut asks_iter = asks_in.into_iter().take(conf.depth);
                 while let Some(ask) = asks_iter.next() {
                     orderbook.asks().insert(
-                        ask[0]
-                            .as_str()
-                            .unwrap()
-                            .to_string()
-                            .parse::<Decimal>()
-                            .unwrap(),
-                        ask[1].as_str().unwrap().to_string().parse::<f64>().unwrap(),
+                        utils::key_from_value(ask),
+                        utils::level_from_value(ask, "bitstamp"),
                     );
                 }
             }

@@ -1,3 +1,8 @@
+use crate::{
+    config,
+    definitions::{Orderbook, Orderbooks},
+    utils,
+};
 use futures_util::StreamExt;
 use log::{error, info};
 use rust_decimal::prelude::*;
@@ -6,11 +11,6 @@ use std::{error::Error, sync::Arc};
 use tokio::sync::{mpsc, Mutex};
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 use tonic::Status;
-
-use crate::{
-    config,
-    definitions::{Orderbook, Orderbooks},
-};
 
 // Open a websocket connection and process the update messages into a locally stored orderbook.
 // the following set of rules are applied:
@@ -34,7 +34,7 @@ pub async fn consume_orderbooks(
     // the url.
     let orderbook_arc = Arc::new(Mutex::new(Orderbook::new()));
     let ws_base = url::Url::parse(&conf.exchanges.binance.websocket.as_str()).unwrap();
-    let ws_channel = format!("/ws/{}@depth@1000ms", &conf.ticker);
+    let ws_channel = format!("/ws/{}@depth@100ms", &conf.ticker);
     let ws_url = ws_base.join(ws_channel.as_str()).unwrap();
 
     info!("Binance Collector Started, attempting to connect to websocket server...");
@@ -90,65 +90,15 @@ pub async fn consume_orderbooks(
                         *is_first_lk = true;
                         return;
                     }
-
                     *prev_u_lk = start_u;
-                    let orderbook_temp = orderbook.clone();
                     if let Some(bids_in) = parsed["b"].as_array() {
                         skip = false;
-                        let mut bids_iter = bids_in.into_iter().take(conf.depth.into());
-                        while let Some(bid) = bids_iter.next() {
-                            let level = bid[0]
-                                .as_str()
-                                .unwrap()
-                                .to_string()
-                                .parse::<Decimal>()
-                                .unwrap();
-                            let amount =
-                                bid[1].as_str().unwrap().to_string().parse::<f64>().unwrap();
-                            orderbook.bids.remove(&level);
-                            if amount > 0.0 {
-                                orderbook.bids.insert(level, amount);
-
-                                // check if a bid overlaps old ask levels
-                                let mut asks_iter = orderbook_temp.asks.iter();
-                                while let Some((l, _)) = asks_iter.next() {
-                                    if l <= &level {
-                                        orderbook.asks.remove(&l);
-                                    } else {
-                                        break;
-                                    }
-                                }
-                            }
-                        }
+                        utils::handle_update_message(bids_in, &mut orderbook, conf.depth, true);
                     }
 
                     if let Some(asks_in) = parsed["a"].as_array() {
                         skip = false;
-                        let mut asks_iter = asks_in.into_iter().take(conf.depth.into());
-                        while let Some(ask) = asks_iter.next() {
-                            let level = ask[0]
-                                .as_str()
-                                .unwrap()
-                                .to_string()
-                                .parse::<Decimal>()
-                                .unwrap();
-                            let amount =
-                                ask[1].as_str().unwrap().to_string().parse::<f64>().unwrap();
-                            orderbook.asks.remove(&level);
-                            if amount > 0.0 {
-                                orderbook.asks.insert(level, amount);
-
-                                // check if an ask overlaps old bid levels
-                                let mut bids_iter = orderbook_temp.bids.iter().rev();
-                                while let Some((l, _)) = bids_iter.next() {
-                                    if l >= &level {
-                                        orderbook.bids.remove(&l);
-                                    } else {
-                                        break;
-                                    }
-                                }
-                            }
-                        }
+                        utils::handle_update_message(asks_in, &mut orderbook, conf.depth, false);
                     }
                 } else {
                     error!("Missing u or U from depth update message.");
@@ -197,7 +147,7 @@ async fn get_snapshot(conf: &config::Server, orderbook: &mut Orderbook) -> u64 {
     let api_channel = format!(
         "/api/v3/depth?symbol={}&limit={}",
         &conf.ticker.to_uppercase(),
-        5000
+        100
     );
     let api_url = api_base.join(api_channel.as_str()).unwrap();
     let snapshot = reqwest::get(api_url).await.unwrap().text().await.unwrap();
@@ -208,35 +158,24 @@ async fn get_snapshot(conf: &config::Server, orderbook: &mut Orderbook) -> u64 {
     let bids_snapshot = snapshot["bids"]
         .as_array()
         .expect("Can't parse snapshot.bids");
-    let mut bids_iter = bids_snapshot.into_iter(); //.take(conf.depth.into());
-
+    let mut bids_iter = bids_snapshot.into_iter(); //.take(conf.depth);
     while let Some(bid) = bids_iter.next() {
         orderbook.bids.insert(
-            bid[0]
-                .as_str()
-                .unwrap()
-                .to_string()
-                .parse::<Decimal>()
-                .unwrap(),
-            bid[1].as_str().unwrap().to_string().parse::<f64>().unwrap(),
+            utils::key_from_value(bid),
+            utils::level_from_value(bid, "binance"),
         );
     }
     let asks_snapshot = snapshot["asks"]
         .as_array()
         .expect("Can't parse snapshot.bids");
-    let mut asks_iter = asks_snapshot.into_iter(); //.take(conf.depth.into());
-
+    let mut asks_iter = asks_snapshot.into_iter(); //.take(conf.depth);
     while let Some(ask) = asks_iter.next() {
         orderbook.asks.insert(
-            ask[0]
-                .as_str()
-                .unwrap()
-                .to_string()
-                .parse::<Decimal>()
-                .unwrap(),
-            ask[1].as_str().unwrap().to_string().parse::<f64>().unwrap(),
+            utils::key_from_value(ask),
+            utils::level_from_value(ask, "binance"),
         );
     }
+
     snapshot["lastUpdateId"]
         .as_u64()
         .expect("lastUpdateId missing from snapshot json.")

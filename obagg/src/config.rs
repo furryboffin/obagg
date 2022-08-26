@@ -2,6 +2,11 @@ use serde::Deserialize;
 use std::{error::Error, net::SocketAddr};
 
 #[derive(Deserialize)]
+pub struct Apis {
+    pub binance: String,
+}
+
+#[derive(Deserialize)]
 pub struct Exchange {
     pub enable: bool,
     pub websocket: String,
@@ -15,16 +20,12 @@ pub struct Exchanges {
 }
 
 #[derive(Deserialize)]
-pub struct Apis {
-    pub binance: String,
-}
-
-#[derive(Deserialize)]
 pub struct Server {
     pub bind_address: SocketAddr,
-    pub depth: u16,
-    pub ticker: String,
+    pub depth: usize,
     pub exchanges: Exchanges,
+    pub identical_level_order: bool,
+    pub ticker: String,
 }
 
 fn file_from_env(var: &str) -> Result<std::fs::File, Box<dyn Error + Sync + Send>> {

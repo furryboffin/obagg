@@ -9,6 +9,7 @@ mod config;
 mod definitions;
 mod grpc;
 mod server;
+mod utils;
 
 pub mod orderbook {
     tonic::include_proto!("orderbook");

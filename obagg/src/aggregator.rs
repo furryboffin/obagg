@@ -7,6 +7,7 @@ use tokio::{
 use tonic::Status;
 use uuid::Uuid;
 
+use crate::utils;
 use crate::{
     config,
     definitions::{AggregatedOrderbook, Orderbook, Orderbooks},
@@ -35,63 +36,149 @@ pub async fn aggregate_orderbooks(
             let mut futures = vec![];
 
             // match the type of incoming message and cache it in the appropriate book type
+            // JRF TODO. at this point we need to map the keys to the new key format that includes the amount so that we can get the ordering correct.
             match orderbook {
                 Orderbooks::Binance(binance_orderbook) => {
-                    binance_ob_cache = binance_orderbook;
+                    binance_ob_cache = binance_orderbook.clone();
+
+                    aggregated_orderbook.bids = bitstamp_ob_cache
+                        .bids
+                        .clone()
+                        .into_iter()
+                        .map(|k| utils::map_key(k, conf, true))
+                        .collect();
+
+                    aggregated_orderbook.bids.append(
+                        &mut binance_orderbook
+                            .bids
+                            .into_iter()
+                            .map(|k| utils::map_key(k, conf, true))
+                            .collect(),
+                    );
+
+                    aggregated_orderbook.asks = bitstamp_ob_cache
+                        .asks
+                        .clone()
+                        .into_iter()
+                        .map(|k| utils::map_key(k, conf, false))
+                        .collect();
+
+                    aggregated_orderbook.asks.append(
+                        &mut binance_orderbook
+                            .asks
+                            .into_iter()
+                            .map(|k| utils::map_key(k, conf, false))
+                            .collect(),
+                    );
                 }
                 Orderbooks::Bitstamp(bitstamp_orderbook) => {
-                    bitstamp_ob_cache = bitstamp_orderbook;
+                    bitstamp_ob_cache = bitstamp_orderbook.clone();
+                    aggregated_orderbook.bids = binance_ob_cache
+                        .bids
+                        .clone()
+                        .into_iter()
+                        .map(|k| utils::map_key(k, conf, true))
+                        .collect();
+                    aggregated_orderbook.bids.append(
+                        &mut bitstamp_orderbook
+                            .bids
+                            .into_iter()
+                            .map(|k| utils::map_key(k, conf, true))
+                            .collect(),
+                    );
+                    aggregated_orderbook.asks = binance_ob_cache
+                        .asks
+                        .clone()
+                        .into_iter()
+                        .map(|k| utils::map_key(k, conf, false))
+                        .collect();
+                    aggregated_orderbook.asks.append(
+                        &mut bitstamp_orderbook
+                            .asks
+                            .into_iter()
+                            .map(|k| utils::map_key(k, conf, false))
+                            .collect(),
+                    );
                 }
             }
 
-            // aggregate the orderbooks
-            let mut binance_bids_iter = binance_ob_cache.bids.iter();
-            while let Some((level, amount)) = binance_bids_iter.next() {
-                aggregated_orderbook.bids.insert(
-                    *level,
-                    Level {
-                        price: level.to_string().parse::<f64>().unwrap(),
-                        amount: *amount,
-                        exchange: "binance".to_string(),
-                    },
-                );
-            }
+            // // aggregate the orderbooks
+            // // // aggregate the orderbooks
+            // // // let bids_out: Vec<Level> = aggregated_orderbook_reduced.bids.into_values().collect();
+            // // // let asks_out: Vec<Level> = aggregated_orderbook_reduced.asks.into_values().collect();
 
-            let mut binance_asks_iter = binance_ob_cache.asks.iter();
-            while let Some((level, amount)) = binance_asks_iter.next() {
-                aggregated_orderbook.asks.insert(
-                    *level,
-                    Level {
-                        price: level.to_string().parse::<f64>().unwrap(),
-                        amount: *amount,
-                        exchange: "binance".to_string(),
-                    },
-                );
-            }
+            // // let mut bids_out = Vec::<Level>::with_capacity(conf.depth);
+            // // let mut binance_bids_iter = binance_ob_cache.bids.iter();
+            // // while let Some((level, amount)) = binance_bids_iter.next() {
+            // //     bids_out.push(
+            // //         Level {
+            // //             price: level.to_string().parse::<f64>().unwrap(),
+            // //             amount: *amount,
+            // //             exchange: "binance".to_string(),
+            // //         }
+            // //     )
+            // // }
 
-            let mut bitstamp_bids_iter = bitstamp_ob_cache.bids.iter();
-            while let Some((level, amount)) = bitstamp_bids_iter.next() {
-                aggregated_orderbook.bids.insert(
-                    *level,
-                    Level {
-                        price: level.to_string().parse::<f64>().unwrap(),
-                        amount: *amount,
-                        exchange: "bitstamp".to_string(),
-                    },
-                );
-            }
+            // // let mut bitstamp_bids_iter = bitstamp_ob_cache.bids.iter();
+            // // while let Some((level, amount)) = bitstamp_bids_iter.next() {
+            // //     bids_out.push(
+            // //         Level {
+            // //             price: level.to_string().parse::<f64>().unwrap(),
+            // //             amount: *amount,
+            // //             exchange: "binance".to_string(),
+            // //         }
+            // //     )
+            // // }
+            // // let mut asks_out = Vec::<Level>::with_capacity(conf.depth);
+            // aggregated_orderbook.bids = binance_ob_cache.bids.clone();
 
-            let mut bitstamp_asks_iter = bitstamp_ob_cache.asks.iter();
-            while let Some((level, amount)) = bitstamp_asks_iter.next() {
-                aggregated_orderbook.asks.insert(
-                    *level,
-                    Level {
-                        price: level.to_string().parse::<f64>().unwrap(),
-                        amount: *amount,
-                        exchange: "bitstamp".to_string(),
-                    },
-                );
-            }
+            // let mut binance_bids_iter = binance_ob_cache.bids.iter();
+            // while let Some((level, amount)) = binance_bids_iter.next() {
+            //     aggregated_orderbook.bids.insert(
+            //         *level,
+            //         Level {
+            //             price: level.to_string().parse::<f64>().unwrap(),
+            //             amount: *amount,
+            //             exchange: "binance".to_string(),
+            //         },
+            //     );
+            // }
+
+            // let mut binance_asks_iter = binance_ob_cache.asks.iter();
+            // while let Some((level, amount)) = binance_asks_iter.next() {
+            //     aggregated_orderbook.asks.insert(
+            //         *level,
+            //         Level {
+            //             price: level.to_string().parse::<f64>().unwrap(),
+            //             amount: *amount,
+            //             exchange: "binance".to_string(),
+            //         },
+            //     );
+            // }
+
+            // let mut bitstamp_bids_iter = bitstamp_ob_cache.bids.iter();
+            // while let Some((level, amount)) = bitstamp_bids_iter.next() {
+            //     aggregated_orderbook.bids.insert(
+            //         *level,
+            //         Level {
+            //             price: level.to_string().parse::<f64>().unwrap(),
+            //             amount: *amount,
+            //             exchange: "bitstamp".to_string(),
+            //         },
+            //     );
+            // }
+
+            // let mut bitstamp_asks_iter = bitstamp_ob_cache.asks.iter();
+            // while let Some((level, amount)) = bitstamp_asks_iter.next() {
+            //     aggregated_orderbook.asks.insert(
+            //         *level,
+            //         Level {
+            //             price: level.to_string().parse::<f64>().unwrap(),
+            //             amount: *amount,
+            //             exchange: "bitstamp".to_string(),
+            //         },
+            //     );
+            // }
 
             let mut aggregated_orderbook_reduced = aggregated_orderbook.clone();
 
@@ -109,7 +196,11 @@ pub async fn aggregate_orderbooks(
             }
 
             // build the Summary
-            let bids_out: Vec<Level> = aggregated_orderbook_reduced.bids.into_values().collect();
+            let bids_out: Vec<Level> = aggregated_orderbook_reduced
+                .bids
+                .into_values()
+                .rev()
+                .collect();
             let asks_out: Vec<Level> = aggregated_orderbook_reduced.asks.into_values().collect();
 
             let summary = Summary {
