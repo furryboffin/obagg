@@ -122,6 +122,10 @@ impl OrderbookLevel {
     pub fn get_price(&self) -> Decimal {
         self.level.0.to_string().parse::<Decimal>().unwrap()
     }
+
+    pub fn get_amount(&self) -> f64 {
+        self.level.1
+    }
 }
 
 #[cfg(test)]
@@ -134,8 +138,7 @@ mod tests {
 
     #[test]
     fn bitstamp_oderbook_message() {
-        let json_message =
-            r#"{
+        let json_message = r#"{
                 "data":{
                     "timestamp":"1661585367",
                     "microtimestamp":"1661585367425575",
@@ -170,8 +173,7 @@ mod tests {
 
     #[test]
     fn binance_oderbook_message() {
-        let json_message =
-            r#"{
+        let json_message = r#"{
                 "lastUpdateId":1661585367,
                 "bids":[
                     ["0.00259978","4.35000000"]
@@ -196,8 +198,7 @@ mod tests {
 
     #[test]
     fn binance_oderbook_update_message() {
-        let json_message =
-            r#"{
+        let json_message = r#"{
                 "e":"depthUpdate",
                 "E":1661586147639,
                 "s":"LTCBTC",

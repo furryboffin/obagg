@@ -2,17 +2,9 @@ use rust_decimal::Decimal;
 
 use crate::{
     config,
-    definitions::{self, Orderbook},
+    definitions::{self, Orderbook, OrderbookLevel},
     orderbook::Level,
 };
-
-pub fn key_from_value(v: &serde_json::Value) -> Decimal {
-    v[0].as_str()
-        .unwrap()
-        .to_string()
-        .parse::<Decimal>()
-        .unwrap()
-}
 
 pub fn map_key(k: (Decimal, Level), conf: &config::Server, is_bids: bool) -> (Decimal, Level) {
     if (is_bids && conf.identical_level_order) || (!is_bids && !conf.identical_level_order) {
@@ -30,36 +22,27 @@ pub fn map_key(k: (Decimal, Level), conf: &config::Server, is_bids: bool) -> (De
     }
 }
 
-pub fn level_from_value(v: &serde_json::Value, exchange: &str) -> Level {
-    Level {
-        amount: amount_from_value(v),
-        exchange: exchange.into(),
-        price: v[0].as_str().unwrap().to_string().parse::<f64>().unwrap(),
-    }
-}
-
 pub fn handle_update_message(
-    v: &Vec<serde_json::Value>,
+    v: &Vec<OrderbookLevel>,
     ob: &mut Orderbook,
     d: usize,
     is_bids: bool,
+    exchange: &str,
 ) {
-    let mut bids_iter = v.into_iter().take(d);
+    let mut iter = v.iter().take(d);
     if is_bids {
         let b = &mut ob.bids;
         let other_b = &mut ob.asks;
         let other_b_clone = other_b.clone();
-        let mut asks_iter = other_b_clone.iter();
-        while let Some(bid) = bids_iter.next() {
-            let key = key_from_value(bid);
-            let level = level_from_value(bid, "binance");
+        let mut other_iter = other_b_clone.iter();
+        while let Some(l) = iter.next() {
+            let key = l.get_price();
             b.remove(&key);
-            if amount_from_value(bid) > 0.0 {
-                b.insert(key, level);
+            if l.get_amount() > 0.0 {
+                b.insert(key, l.get_level(exchange.into()));
 
                 // check if a bid overlaps old ask levels
-
-                while let Some((k, _)) = asks_iter.next() {
+                while let Some((k, _)) = other_iter.next() {
                     if k <= &key {
                         other_b.remove(&k);
                     } else {
@@ -72,17 +55,15 @@ pub fn handle_update_message(
         let b = &mut ob.asks;
         let other_b = &mut ob.bids;
         let other_b_clone = other_b.clone();
-        let mut asks_iter = other_b_clone.iter().rev();
-        while let Some(bid) = bids_iter.next() {
-            let key = key_from_value(bid);
-            let level = level_from_value(bid, "binance");
+        let mut other_iter = other_b_clone.iter().rev();
+        while let Some(l) = iter.next() {
+            let key = l.get_price();
             b.remove(&key);
-            if amount_from_value(bid) > 0.0 {
-                b.insert(key, level);
+            if l.get_amount() > 0.0 {
+                b.insert(key, l.get_level(exchange.into()));
 
                 // check if a bid overlaps old ask levels
-
-                while let Some((k, _)) = asks_iter.next() {
+                while let Some((k, _)) = other_iter.next() {
                     if k >= &key {
                         other_b.remove(&k);
                     } else {
@@ -94,9 +75,6 @@ pub fn handle_update_message(
     }
 }
 
-pub fn amount_from_value(v: &serde_json::Value) -> f64 {
-    v[1].as_str().unwrap().to_string().parse::<f64>().unwrap()
-}
 
 // pub fn stream_function() -> Arc<Mutex<Pin<Box<dyn Stream<Item = Summary> + Send + Sync + 'static>>>>
 // {

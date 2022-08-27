@@ -1,5 +1,5 @@
 use futures::{SinkExt, StreamExt};
-use log::{error, info};
+use log::{error, info, debug};
 use serde_json;
 use std::error::Error;
 use tokio::sync::mpsc;
@@ -36,7 +36,7 @@ pub async fn consume_orderbooks(
                 let msg = match message {
                     Message::Text(s) => s,
                     _ => {
-                        error!("Websocket message was not a string!");
+                        debug!("Websocket message was not a string!");
                         return;
                     }
                 };
@@ -55,15 +55,15 @@ pub async fn consume_orderbooks(
                         if let Err(_item) =
                             tx.send(Result::<Orderbooks, Status>::Ok(orderbook)).await
                         {
-                            println!("Error sending bitstamp orderbook item.");
+                            error!("Error sending bitstamp orderbook item.");
                         };
                     }
                     Err(err) => {
-                        info!("Message is not an Orderbook message. {}: msg {}", err, msg);
+                        debug!("Message is not an Orderbook message. {}: msg {}", err, msg);
                     }
                 }
             } else {
-                error!("Data was not message! Skip this and wait for the next.")
+                debug!("Data was not a message! Skip this and wait for the next.")
             }
         })
     };
