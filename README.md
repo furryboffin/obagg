@@ -111,3 +111,7 @@ and more unit tests should be added for the various helper functions.
   to serve only one ticker, allow the client to send a message to the gRPC
   server to select the ticker that they want. This would require adding inbound 
   message handling to the gRPC server implementation.
+
+- To speed up the binance websocket client for depths 20 and under, one could
+  select the other channel that provides entire orderbook messages rather than
+  just updates. One could use the full solution for depths over 20.
