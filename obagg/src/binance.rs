@@ -120,7 +120,9 @@ pub async fn consume_orderbooks(
                     Message::Text(s) => s,
                     _ => {
                         error!("Websocket message was not a string!");
-                        *last_update_id = get_snapshot(conf, &mut orderbook).await.expect("Failed to get snapshot.");
+                        *last_update_id = get_snapshot(conf, &mut orderbook)
+                            .await
+                            .expect("Failed to get snapshot.");
                         *is_first_lk = true;
                         return;
                     }
@@ -134,7 +136,9 @@ pub async fn consume_orderbooks(
                         return;
                     }
                     if !*is_first_lk && *prev_u_lk + 1 != end_u {
-                        *last_update_id = get_snapshot(conf, &mut orderbook).await.expect("Failed to get snapshot.");
+                        *last_update_id = get_snapshot(conf, &mut orderbook)
+                            .await
+                            .expect("Failed to get snapshot.");
                         *is_first_lk = true;
                         return;
                     }
@@ -145,7 +149,9 @@ pub async fn consume_orderbooks(
                     {
                         *is_first_lk = false;
                     } else if *is_first_lk {
-                        *last_update_id = get_snapshot(conf, &mut orderbook).await.expect("Failed to get snapshot.");
+                        *last_update_id = get_snapshot(conf, &mut orderbook)
+                            .await
+                            .expect("Failed to get snapshot.");
                         *is_first_lk = true;
                         return;
                     }

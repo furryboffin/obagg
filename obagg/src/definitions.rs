@@ -91,7 +91,7 @@ pub struct BinanceOrderbookUpdateMessage {
     pub event: String,
     #[serde(rename = "E")]
     pub timestamp: u64,
-    #[serde(rename = "s ")]
+    #[serde(rename = "s")]
     pub symbol: String,
     #[serde(rename = "U")]
     pub first_update_id: u64,
@@ -121,5 +121,106 @@ impl OrderbookLevel {
 
     pub fn get_price(&self) -> Decimal {
         self.level.0.to_string().parse::<Decimal>().unwrap()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::BinanceOrderbookMessage;
+    use super::BinanceOrderbookUpdateMessage;
+    use super::BitstampOrderbookData;
+    use super::BitstampOrderbookMessage;
+    use super::OrderbookLevel;
+
+    #[test]
+    fn bitstamp_oderbook_message() {
+        let json_message =
+            r#"{
+                "data":{
+                    "timestamp":"1661585367",
+                    "microtimestamp":"1661585367425575",
+                    "bids":[
+                        ["0.00259978","4.35000000"]
+                    ],
+                    "asks":[
+                        ["0.00344831","7.50000000"]
+                    ]
+                },
+                "channel":"order_book_ltcbtc",
+                "event":"data"
+            }"#;
+        let bitstamp_orderbook_message = BitstampOrderbookMessage {
+            data: BitstampOrderbookData {
+                timestamp: 1661585367,
+                microtimestamp: 1661585367425575,
+                bids: vec![OrderbookLevel {
+                    level: (0.00259978, 4.35000000),
+                }],
+                asks: vec![OrderbookLevel {
+                    level: (0.00344831, 7.50000000),
+                }],
+            },
+            channel: String::from("order_book_ltcbtc"),
+            event: String::from("data"),
+        };
+        let deserialized_orderbook =
+            serde_json::from_str::<BitstampOrderbookMessage>(&json_message).unwrap();
+        assert_eq!(deserialized_orderbook, bitstamp_orderbook_message);
+    }
+
+    #[test]
+    fn binance_oderbook_message() {
+        let json_message =
+            r#"{
+                "lastUpdateId":1661585367,
+                "bids":[
+                    ["0.00259978","4.35000000"]
+                ],
+                "asks":[
+                    ["0.00344831","7.50000000"]
+                ]
+            }"#;
+        let bitstamp_orderbook_message = BinanceOrderbookMessage {
+            last_update_id: 1661585367,
+            bids: vec![OrderbookLevel {
+                level: (0.00259978, 4.35000000),
+            }],
+            asks: vec![OrderbookLevel {
+                level: (0.00344831, 7.50000000),
+            }],
+        };
+        let deserialized_orderbook =
+            serde_json::from_str::<BinanceOrderbookMessage>(&json_message).unwrap();
+        assert_eq!(deserialized_orderbook, bitstamp_orderbook_message);
+    }
+
+    #[test]
+    fn binance_oderbook_update_message() {
+        let json_message =
+            r#"{
+                "e":"depthUpdate",
+                "E":1661586147639,
+                "s":"LTCBTC",
+                "U":1753501212,
+                "u":1753501215,
+                "b":[["0.00259978","4.35000000"]],
+                "a":[["0.00344831","7.50000000"]]
+            }"#;
+        let binance_orderbook_update_message = BinanceOrderbookUpdateMessage {
+            event: String::from("depthUpdate"),
+            timestamp: 1661586147639,
+            symbol: String::from("LTCBTC"),
+            first_update_id: 1753501212,
+            last_update_id: 1753501215,
+            bids: vec![OrderbookLevel {
+                level: (0.00259978, 4.35000000),
+            }],
+            asks: vec![OrderbookLevel {
+                level: (0.00344831, 7.50000000),
+            }],
+        };
+        let deserialized_orderbook =
+            serde_json::from_str::<BinanceOrderbookUpdateMessage>(&json_message).unwrap();
+        assert_eq!(deserialized_orderbook, binance_orderbook_update_message);
     }
 }
