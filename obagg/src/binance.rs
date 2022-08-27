@@ -1,8 +1,3 @@
-use crate::{
-    config,
-    definitions::{Orderbook, Orderbooks},
-    utils,
-};
 use futures_util::StreamExt;
 use log::{error, info};
 use rust_decimal::prelude::*;
@@ -12,8 +7,71 @@ use tokio::sync::{mpsc, Mutex};
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 use tonic::Status;
 
-// Open a websocket connection and process the update messages into a locally stored orderbook.
-// the following set of rules are applied:
+use crate::{
+    config,
+    definitions::{BinanceOrderbookMessage, Orderbook, Orderbooks},
+    utils,
+};
+
+// For depths 20 and under we employ the reduced orderbook stream.
+pub async fn consume_reduced_orderbooks(
+    conf: &config::Server,
+    tx: mpsc::Sender<Result<Orderbooks, Status>>,
+) -> Result<(), Box<dyn Error>> {
+    info!("Binance Collector Started, attempting to connect to websocket server...");
+    let base = url::Url::parse(&conf.exchanges.binance.websocket.as_str()).unwrap();
+    let channel = format!("/ws/{}@depth{}@100ms", &conf.ticker, &conf.depth); //<symbol>@depth<levels>@100ms
+    let url = base.join(channel.as_str()).unwrap();
+    let (ws_stream, _) = connect_async(url).await?;
+    info!("Binance WebSocket handshake has been successfully completed.");
+
+    let (_, read) = ws_stream.split();
+
+    let read_future = {
+        read.for_each(|message| async {
+            let mut orderbook = Orderbooks::Binance(Orderbook::new());
+            if let Ok(message) = message {
+                let msg = match message {
+                    Message::Text(s) => s,
+                    _ => {
+                        error!("Websocket message was not a string!");
+                        return;
+                    }
+                };
+                match serde_json::from_str::<BinanceOrderbookMessage>(&msg) {
+                    Ok(orderbook_message) => {
+                        for bid in orderbook_message.bids {
+                            orderbook
+                                .bids()
+                                .insert(bid.get_price(), bid.get_level("binance"));
+                        }
+                        for ask in orderbook_message.asks {
+                            orderbook
+                                .asks()
+                                .insert(ask.get_price(), ask.get_level("binance"));
+                        }
+                        if let Err(_item) =
+                            tx.send(Result::<Orderbooks, Status>::Ok(orderbook)).await
+                        {
+                            println!("Error sending binance orderbook item.");
+                        };
+                    }
+                    Err(err) => {
+                        info!("Message is not an Orderbook message. {}: msg {}", err, msg);
+                    }
+                }
+            } else {
+                error!("Data was not message! Skip this and wait for the next.")
+            }
+        })
+    };
+    read_future.await;
+    Ok(())
+}
+
+// For depths over 20 we must employ the full orderbook websocket channel.
+// In this case we open a websocket connection and process the update messages into a locally stored
+// orderbook. The following set of rules are applied:
 // 1. Open a stream to the websocket e.g.: wss://stream.binance.com:9443/ws/bnbbtc@depth.
 // 2. Buffer the events you receive from the stream.
 // 3. Get a depth snapshot from https://api.binance.com/api/v3/depth?symbol=BNBBTC&limit=1000 .
@@ -44,7 +102,7 @@ pub async fn consume_orderbooks(
 
     // get the snapshot
     let last_update_id_arc = Arc::new(Mutex::new(
-        get_snapshot(conf, &mut *orderbook_arc.lock().await).await,
+        get_snapshot(conf, &mut *orderbook_arc.lock().await).await?,
     ));
     let is_first = Arc::new(Mutex::new(true));
     let prev_u = Arc::new(Mutex::new(0));
@@ -62,11 +120,12 @@ pub async fn consume_orderbooks(
                     Message::Text(s) => s,
                     _ => {
                         error!("Websocket message was not a string!");
-                        *last_update_id = get_snapshot(conf, &mut orderbook).await;
+                        *last_update_id = get_snapshot(conf, &mut orderbook).await.expect("Failed to get snapshot.");
                         *is_first_lk = true;
                         return;
                     }
                 };
+
                 let parsed: serde_json::Value =
                     serde_json::from_str(&msg).expect("Can't parse to JSON");
                 let mut skip = true;
@@ -75,7 +134,7 @@ pub async fn consume_orderbooks(
                         return;
                     }
                     if !*is_first_lk && *prev_u_lk + 1 != end_u {
-                        *last_update_id = get_snapshot(conf, &mut orderbook).await;
+                        *last_update_id = get_snapshot(conf, &mut orderbook).await.expect("Failed to get snapshot.");
                         *is_first_lk = true;
                         return;
                     }
@@ -86,7 +145,7 @@ pub async fn consume_orderbooks(
                     {
                         *is_first_lk = false;
                     } else if *is_first_lk {
-                        *last_update_id = get_snapshot(conf, &mut orderbook).await;
+                        *last_update_id = get_snapshot(conf, &mut orderbook).await.expect("Failed to get snapshot.");
                         *is_first_lk = true;
                         return;
                     }
@@ -127,7 +186,7 @@ pub async fn consume_orderbooks(
                         )))
                         .await
                     {
-                        println!("Error sending bitstamp orderbook item.");
+                        println!("Error sending binance orderbook item.");
                     };
                 } else {
                     error!("Skipped message.");
@@ -140,9 +199,12 @@ pub async fn consume_orderbooks(
 }
 
 // Get a snapshot of the orderbook from the binance API server. This async function returns a promise
-// that resolves to the lastUpdateId returned with the orderbook data. The bids and asks are stored
-// in two BTreeMaps passed in
-async fn get_snapshot(conf: &config::Server, orderbook: &mut Orderbook) -> u64 {
+// that resolves to a Result<lastUpdateId> returned with the orderbook data. The bids and asks are stored
+// in the orderbook reference object that is passed into the function call.
+async fn get_snapshot(
+    conf: &config::Server,
+    orderbook: &mut Orderbook,
+) -> Result<u64, Box<dyn Error>> {
     let api_base = url::Url::parse(&conf.exchanges.binance.api.as_str()).unwrap();
     let api_channel = format!(
         "/api/v3/depth?symbol={}&limit={}",
@@ -151,32 +213,18 @@ async fn get_snapshot(conf: &config::Server, orderbook: &mut Orderbook) -> u64 {
     );
     let api_url = api_base.join(api_channel.as_str()).unwrap();
     let snapshot = reqwest::get(api_url).await.unwrap().text().await.unwrap();
-
-    let snapshot: serde_json::Value = serde_json::from_str(&snapshot).expect("Can't parse to JSON");
+    let orderbook_message = serde_json::from_str::<BinanceOrderbookMessage>(&snapshot)?;
     orderbook.bids.clear();
     orderbook.asks.clear();
-    let bids_snapshot = snapshot["bids"]
-        .as_array()
-        .expect("Can't parse snapshot.bids");
-    let mut bids_iter = bids_snapshot.into_iter(); //.take(conf.depth);
-    while let Some(bid) = bids_iter.next() {
-        orderbook.bids.insert(
-            utils::key_from_value(bid),
-            utils::level_from_value(bid, "binance"),
-        );
+    for bid in orderbook_message.bids {
+        orderbook
+            .bids
+            .insert(bid.get_price(), bid.get_level("binance"));
     }
-    let asks_snapshot = snapshot["asks"]
-        .as_array()
-        .expect("Can't parse snapshot.bids");
-    let mut asks_iter = asks_snapshot.into_iter(); //.take(conf.depth);
-    while let Some(ask) = asks_iter.next() {
-        orderbook.asks.insert(
-            utils::key_from_value(ask),
-            utils::level_from_value(ask, "binance"),
-        );
+    for ask in orderbook_message.asks {
+        orderbook
+            .asks
+            .insert(ask.get_price(), ask.get_level("binance"));
     }
-
-    snapshot["lastUpdateId"]
-        .as_u64()
-        .expect("lastUpdateId missing from snapshot json.")
+    Ok(orderbook_message.last_update_id)
 }

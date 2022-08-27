@@ -8,6 +8,7 @@ mod client;
 mod config;
 mod definitions;
 mod grpc;
+mod serde;
 mod server;
 mod utils;
 

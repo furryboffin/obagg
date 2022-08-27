@@ -8,8 +8,7 @@ use tonic::Status;
 
 use crate::{
     config,
-    definitions::{Orderbook, Orderbooks},
-    utils,
+    definitions::{BitstampOrderbookMessage, Orderbook, Orderbooks},
 };
 
 pub async fn consume_orderbooks(
@@ -33,48 +32,46 @@ pub async fn consume_orderbooks(
     let read_future = {
         read.for_each(|message| async {
             let mut orderbook = Orderbooks::Bitstamp(Orderbook::new());
-            // JRF TODO, we must handle these exceptions where data was not a message.
-            // currently the server panics! Could this be caused by running two different binaries?
-            let msg = match message.expect("Data was not message!") {
-                Message::Text(s) => s,
-                _ => {
-                    error!("Websocket message was not a string!");
-                    return;
-                }
-            };
-
-            let parsed: serde_json::Value =
-                serde_json::from_str(&msg).expect("Can't parse to JSON");
-            let mut skip = true;
-
-            if let Some(bids_in) = parsed["data"]["bids"].as_array() {
-                skip = false;
-                let mut bids_iter = bids_in.into_iter().take(conf.depth);
-                while let Some(bid) = bids_iter.next() {
-                    orderbook.bids().insert(
-                        utils::key_from_value(bid),
-                        utils::level_from_value(bid, "bitstamp"),
-                    );
-                }
-            }
-            if let Some(asks_in) = parsed["data"]["asks"].as_array() {
-                skip = false;
-                let mut asks_iter = asks_in.into_iter().take(conf.depth);
-                while let Some(ask) = asks_iter.next() {
-                    orderbook.asks().insert(
-                        utils::key_from_value(ask),
-                        utils::level_from_value(ask, "bitstamp"),
-                    );
-                }
-            }
-
-            if !skip {
-                if let Err(_item) = tx.send(Result::<Orderbooks, Status>::Ok(orderbook)).await {
-                    println!("Error sending bitstamp orderbook item.");
+            if let Ok(message) = message {
+                let msg = match message {
+                    Message::Text(s) => s,
+                    _ => {
+                        error!("Websocket message was not a string!");
+                        return;
+                    }
                 };
+                match serde_json::from_str::<BitstampOrderbookMessage>(&msg) {
+                    Ok(orderbook_message) => {
+                        for bid in orderbook_message.data.bids {
+                            orderbook
+                                .bids()
+                                .insert(bid.get_price(), bid.get_level("bitstamp"));
+                        }
+                        for ask in orderbook_message.data.asks {
+                            orderbook
+                                .asks()
+                                .insert(ask.get_price(), ask.get_level("bitstamp"));
+                        }
+                        if let Err(_item) =
+                            tx.send(Result::<Orderbooks, Status>::Ok(orderbook)).await
+                        {
+                            println!("Error sending bitstamp orderbook item.");
+                        };
+                    }
+                    Err(err) => {
+                        info!("Message is not an Orderbook message. {}: msg {}", err, msg);
+                    }
+                }
+            } else {
+                error!("Data was not message! Skip this and wait for the next.")
             }
         })
     };
     read_future.await;
     Ok(())
 }
+
+// pub fn message_body(
+// ) -> impl Filter<Extract = (models::NewPayment,), Error = warp::Rejection> + Copy {
+//     warp::body::json()
+// }

@@ -36,10 +36,17 @@ pub async fn server(conf: config::Server) -> Result<(), Box<dyn Error>> {
 
     // JRF TODO move the following tasks into spawned threads to help speed up processing if required.
     if conf.exchanges.binance.enable {
-        futures.push(
-            Box::pin(binance::consume_orderbooks(&conf, orderbook_ws_tx.clone()))
-                as Pin<Box<dyn Future<Output = Result<(), Box<dyn Error>>>>>,
-        );
+        if conf.depth <= 20 {
+            futures.push(
+                Box::pin(binance::consume_reduced_orderbooks(&conf, orderbook_ws_tx.clone()))
+                    as Pin<Box<dyn Future<Output = Result<(), Box<dyn Error>>>>>,
+            );
+        } else {
+            futures.push(
+                Box::pin(binance::consume_orderbooks(&conf, orderbook_ws_tx.clone()))
+                    as Pin<Box<dyn Future<Output = Result<(), Box<dyn Error>>>>>,
+            );
+        }
     }
     if conf.exchanges.bitstamp.enable {
         futures.push(
