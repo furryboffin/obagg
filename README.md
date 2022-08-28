@@ -103,8 +103,6 @@ might be prudent to use a hybrid approach such that wherever simple the task
 can manage it's own failures, but anything more terminal can be passed back as
 an error which can then be handled by the main thread.
 
-- More unit tests should be added for the various helper functions.
-
 - Unit tests for the consumers can be added as well as the aggregator.
 
 - Errors could be improved by using custom Error enums and converting all other

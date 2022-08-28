@@ -1,4 +1,4 @@
-use serde::Deserialize;
+use serde::{Deserialize, de::DeserializeOwned};
 use std::{error::Error, net::SocketAddr};
 
 #[derive(Deserialize)]
@@ -39,4 +39,10 @@ impl Server {
             "AGGREGATED_ORDERBOOK_CONFIG",
         )?)?)
     }
+}
+
+pub fn read_config<T: DeserializeOwned>() -> T {
+    let file = file_from_env("AGGREGATED_ORDERBOOK_CONFIG")
+        .expect("Error when opening file pointed to by AGGREGATED_ORDERBOOK_CONFIG env variable");
+    serde_yaml::from_reader(file).expect("Error parsing configuration file!")
 }

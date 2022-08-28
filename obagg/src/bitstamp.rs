@@ -11,10 +11,13 @@ use crate::{
     definitions::{BitstampOrderbookMessage, Orderbook, Orderbooks},
 };
 
+const EXCHANGE: &str = "bitstamp";
+
 pub async fn consume_orderbooks(
     conf: &config::Server,
     tx: mpsc::Sender<Result<Orderbooks, Status>>,
 ) -> Result<(), Box<dyn Error>> {
+
     info!("Bitstamp Collector Started, attempting to connect to websocket server...");
     let url = url::Url::parse(&conf.exchanges.bitstamp.websocket.as_str())?;
     let (ws_stream, _) = connect_async(url).await?;
@@ -45,12 +48,12 @@ pub async fn consume_orderbooks(
                         for bid in orderbook_message.data.bids {
                             orderbook
                                 .bids()
-                                .insert(bid.get_price(), bid.get_level("bitstamp"));
+                                .insert(bid.get_price(), bid.get_level(EXCHANGE));
                         }
                         for ask in orderbook_message.data.asks {
                             orderbook
                                 .asks()
-                                .insert(ask.get_price(), ask.get_level("bitstamp"));
+                                .insert(ask.get_price(), ask.get_level(EXCHANGE));
                         }
                         if let Err(_item) =
                             tx.send(Result::<Orderbooks, Status>::Ok(orderbook)).await
@@ -63,7 +66,7 @@ pub async fn consume_orderbooks(
                     }
                 }
             } else {
-                debug!("Data was not a message! Skip this and wait for the next.")
+                error!("Data was not a message! Skip this and wait for the next.")
             }
         })
     };

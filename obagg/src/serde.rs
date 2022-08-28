@@ -17,14 +17,6 @@ where
     u64::from_str(&s).map_err(de::Error::custom)
 }
 
-// pub fn f64_from_str<'de, D>(deserializer: D) -> Result<f64, D::Error>
-// where
-//     D: Deserializer<'de>,
-// {
-//     let s = String::deserialize(deserializer)?;
-//     f64::from_str(&s).map_err(de::Error::custom)
-// }
-
 pub fn tf64_from_str<'de, D>(deserializer: D) -> Result<(f64, f64), D::Error>
 where
     D: Deserializer<'de>,
@@ -36,8 +28,8 @@ where
         (Ok(l), Ok(a)) => Ok((l, a)),
         (Err(e), Ok(_)) => Err(e),
         (Ok(_), Err(e)) => Err(e),
-        (Err(_), Err(_)) => Err(serde::de::Error::custom(
-            "Failed to deserialize both price and amount from level!",
+        (Err(e1), Err(e2)) => Err(serde::de::Error::custom(
+            format!("Failed to deserialize both price and amount from level! {e1} {e2}"),
         )),
     }
 }

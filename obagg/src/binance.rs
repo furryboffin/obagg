@@ -13,6 +13,8 @@ use crate::{
     utils,
 };
 
+const EXCHANGE: &str = "binance";
+
 // For depths 20 and under we employ the reduced orderbook stream.
 pub async fn consume_reduced_orderbooks(
     conf: &config::Server,
@@ -43,12 +45,12 @@ pub async fn consume_reduced_orderbooks(
                         for bid in orderbook_message.bids {
                             orderbook
                                 .bids()
-                                .insert(bid.get_price(), bid.get_level("binance"));
+                                .insert(bid.get_price(), bid.get_level(EXCHANGE));
                         }
                         for ask in orderbook_message.asks {
                             orderbook
                                 .asks()
-                                .insert(ask.get_price(), ask.get_level("binance"));
+                                .insert(ask.get_price(), ask.get_level(EXCHANGE));
                         }
                         if let Err(_item) =
                             tx.send(Result::<Orderbooks, Status>::Ok(orderbook)).await
@@ -61,7 +63,7 @@ pub async fn consume_reduced_orderbooks(
                     }
                 }
             } else {
-                debug!("Data was not message! Skip this and wait for the next.")
+                error!("Data was not message! Skip this and wait for the next.")
             }
         })
     };
@@ -167,7 +169,7 @@ pub async fn consume_orderbooks(
                             &mut orderbook,
                             conf.depth,
                             true,
-                            "binance"
+                            EXCHANGE
                         );
 
                         let asks_in = orderbook_message.asks;
@@ -176,7 +178,7 @@ pub async fn consume_orderbooks(
                             &mut orderbook,
                             conf.depth,
                             false,
-                            "binance"
+                            EXCHANGE
                         );
 
                         // JRF TODO, move this into function
@@ -206,7 +208,7 @@ pub async fn consume_orderbooks(
                     }
                 }
             } else {
-                debug!("Data was not message! Skip this and wait for the next.");
+                error!("Data was not message! Skip this and wait for the next.");
             }
         })
     };
@@ -235,12 +237,12 @@ async fn get_snapshot(
     for bid in orderbook_message.bids {
         orderbook
             .bids
-            .insert(bid.get_price(), bid.get_level("binance"));
+            .insert(bid.get_price(), bid.get_level(EXCHANGE));
     }
     for ask in orderbook_message.asks {
         orderbook
             .asks
-            .insert(ask.get_price(), ask.get_level("binance"));
+            .insert(ask.get_price(), ask.get_level(EXCHANGE));
     }
     Ok(orderbook_message.last_update_id)
 }

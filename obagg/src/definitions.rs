@@ -4,10 +4,6 @@ use std::collections::BTreeMap;
 
 use crate::orderbook::Level;
 
-pub fn hash_key_offset() -> Decimal {
-    Decimal::new(10000000000000000, 0)
-}
-
 #[derive(Clone, Debug)]
 pub struct AggregatedOrderbook {
     pub bids: BTreeMap<Decimal, Level>,
