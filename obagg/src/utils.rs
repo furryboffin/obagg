@@ -13,14 +13,12 @@ pub fn hash_key_offset() -> Decimal {
 pub fn map_key(k: (Decimal, Level), conf: &config::Server, is_bids: bool) -> (Decimal, Level) {
     if (is_bids && conf.identical_level_order) || (!is_bids && !conf.identical_level_order) {
         (
-            k.0 * hash_key_offset()
-                + k.1.amount.to_string().parse::<Decimal>().unwrap(),
+            k.0 * hash_key_offset() + k.1.amount.to_string().parse::<Decimal>().unwrap(),
             k.1,
         )
     } else {
         (
-            k.0 * hash_key_offset()
-                - k.1.amount.to_string().parse::<Decimal>().unwrap(),
+            k.0 * hash_key_offset() - k.1.amount.to_string().parse::<Decimal>().unwrap(),
             k.1,
         )
     }
@@ -78,7 +76,6 @@ pub fn handle_update_message(
         }
     }
 }
-
 
 // pub fn stream_function() -> Arc<Mutex<Pin<Box<dyn Stream<Item = Summary> + Send + Sync + 'static>>>>
 // {
@@ -147,11 +144,11 @@ pub fn handle_update_message(
 
 #[cfg(test)]
 mod tests {
-    use rust_decimal::Decimal;
-    use std::collections::BTreeMap;
     use crate::config;
     use crate::definitions::Orderbook;
     use crate::orderbook::Level;
+    use rust_decimal::Decimal;
+    use std::collections::BTreeMap;
 
     #[test]
     fn map_key() {
@@ -159,35 +156,51 @@ mod tests {
         let binance_bid_level = Level {
             amount: 10.10,
             exchange: "binance".into(),
-            price: 100.222
+            price: 100.222,
         };
         let bitstamp_bid_level = Level {
             amount: 20.20,
             exchange: "bitstamp".into(),
-            price: 100.222
+            price: 100.222,
         };
         let binance_ask_level = Level {
             amount: 10.10,
             exchange: "binance".into(),
-            price: 100.333
+            price: 100.333,
         };
         let bitstamp_ask_level = Level {
             amount: 20.20,
             exchange: "bitstamp".into(),
-            price: 100.333
+            price: 100.333,
         };
-        orderbook.bids.insert(Decimal::new(100222, 3), binance_bid_level);
-        orderbook.asks.insert(Decimal::new(100222, 3), binance_ask_level);
-        orderbook.bids.insert(Decimal::new(100333, 3), bitstamp_bid_level);
-        orderbook.asks.insert(Decimal::new(100333, 3), bitstamp_ask_level);
+        orderbook
+            .bids
+            .insert(Decimal::new(100222, 3), binance_bid_level);
+        orderbook
+            .asks
+            .insert(Decimal::new(100222, 3), binance_ask_level);
+        orderbook
+            .bids
+            .insert(Decimal::new(100333, 3), bitstamp_bid_level);
+        orderbook
+            .asks
+            .insert(Decimal::new(100333, 3), bitstamp_ask_level);
         let mut conf: config::Server = config::read_config();
 
         // explicitly set the identical level order for testing.
         conf.identical_level_order = true;
 
         // now map the keys to add sub ordering.
-        let bids: BTreeMap<Decimal, Level> = orderbook.bids.into_iter().map(|k| super::map_key(k, &conf, true)).collect();
-        let asks: BTreeMap<Decimal, Level> = orderbook.asks.into_iter().map(|k| super::map_key(k, &conf, false)).collect();
+        let bids: BTreeMap<Decimal, Level> = orderbook
+            .bids
+            .into_iter()
+            .map(|k| super::map_key(k, &conf, true))
+            .collect();
+        let asks: BTreeMap<Decimal, Level> = orderbook
+            .asks
+            .into_iter()
+            .map(|k| super::map_key(k, &conf, false))
+            .collect();
 
         // check that the sub ordering is now correct
         assert!(bids.values().collect::<Vec<&Level>>()[0].exchange == String::from("binance"));
@@ -195,6 +208,5 @@ mod tests {
 
         assert!(bids.values().collect::<Vec<&Level>>()[0].amount == f64::from(10.10));
         assert!(asks.values().collect::<Vec<&Level>>()[0].amount == f64::from(10.10));
-
     }
 }

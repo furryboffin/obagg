@@ -1,5 +1,5 @@
 use futures::{SinkExt, StreamExt};
-use log::{error, info, debug};
+use log::{debug, error, info};
 use serde_json;
 use std::error::Error;
 use tokio::sync::mpsc;
@@ -15,9 +15,8 @@ const EXCHANGE: &str = "bitstamp";
 
 pub async fn consume_orderbooks(
     conf: &config::Server,
-    tx: mpsc::Sender<Result<Orderbooks, Status>>,
-) -> Result<(), Box<dyn Error>> {
-
+    tx: &mpsc::Sender<Result<Orderbooks, Status>>,
+) -> Result<(), Box<dyn Error + Send + Sync>> {
     info!("Bitstamp Collector Started, attempting to connect to websocket server...");
     let url = url::Url::parse(&conf.exchanges.bitstamp.websocket.as_str())?;
     let (ws_stream, _) = connect_async(url).await?;
@@ -35,46 +34,46 @@ pub async fn consume_orderbooks(
     let read_future = {
         read.for_each(|message| async {
             let mut orderbook = Orderbooks::Bitstamp(Orderbook::new());
-            if let Ok(message) = message {
-                let msg = match message {
-                    Message::Text(s) => s,
-                    _ => {
-                        debug!("Websocket message was not a string!");
-                        return;
-                    }
-                };
-                match serde_json::from_str::<BitstampOrderbookMessage>(&msg) {
-                    Ok(orderbook_message) => {
-                        for bid in orderbook_message.data.bids {
-                            orderbook
-                                .bids()
-                                .insert(bid.get_price(), bid.get_level(EXCHANGE));
+            match message {
+                Ok(message) => {
+                    let msg = match message {
+                        Message::Text(s) => s,
+                        _ => {
+                            debug!("Websocket message was not a string!");
+                            return;
                         }
-                        for ask in orderbook_message.data.asks {
-                            orderbook
-                                .asks()
-                                .insert(ask.get_price(), ask.get_level(EXCHANGE));
+                    };
+                    match serde_json::from_str::<BitstampOrderbookMessage>(&msg) {
+                        Ok(orderbook_message) => {
+                            for bid in orderbook_message.data.bids {
+                                orderbook
+                                    .bids()
+                                    .insert(bid.get_price(), bid.get_level(EXCHANGE));
+                            }
+                            for ask in orderbook_message.data.asks {
+                                orderbook
+                                    .asks()
+                                    .insert(ask.get_price(), ask.get_level(EXCHANGE));
+                            }
+                            if let Err(_item) =
+                                tx.send(Result::<Orderbooks, Status>::Ok(orderbook)).await
+                            {
+                                error!("Error sending bitstamp orderbook item.");
+                            };
                         }
-                        if let Err(_item) =
-                            tx.send(Result::<Orderbooks, Status>::Ok(orderbook)).await
-                        {
-                            error!("Error sending bitstamp orderbook item.");
-                        };
-                    }
-                    Err(err) => {
-                        debug!("Message is not an Orderbook message. {}: msg {}", err, msg);
+                        Err(err) => {
+                            debug!("Message is not an Orderbook message. {}: msg {}", err, msg);
+                        }
                     }
                 }
-            } else {
-                error!("Data was not a message! Skip this and wait for the next.")
+                Err(err) => {
+                    error!("Data was not a message!");
+                    error!("{}", err);
+                }
             }
         })
     };
     read_future.await;
+    error!("Websocket failed and closed!");
     Ok(())
 }
-
-// pub fn message_body(
-// ) -> impl Filter<Extract = (models::NewPayment,), Error = warp::Rejection> + Copy {
-//     warp::body::json()
-// }

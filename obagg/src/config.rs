@@ -1,4 +1,4 @@
-use serde::{Deserialize, de::DeserializeOwned};
+use serde::{de::DeserializeOwned, Deserialize};
 use std::{error::Error, net::SocketAddr};
 
 #[derive(Deserialize)]
@@ -6,20 +6,20 @@ pub struct Apis {
     pub binance: String,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Clone)]
 pub struct Exchange {
     pub enable: bool,
     pub websocket: String,
     pub api: String,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Clone)]
 pub struct Exchanges {
     pub binance: Exchange,
     pub bitstamp: Exchange,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Clone)]
 pub struct Server {
     pub bind_address: SocketAddr,
     pub depth: usize,

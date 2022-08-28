@@ -28,8 +28,8 @@ where
         (Ok(l), Ok(a)) => Ok((l, a)),
         (Err(e), Ok(_)) => Err(e),
         (Ok(_), Err(e)) => Err(e),
-        (Err(e1), Err(e2)) => Err(serde::de::Error::custom(
-            format!("Failed to deserialize both price and amount from level! {e1} {e2}"),
-        )),
+        (Err(e1), Err(e2)) => Err(serde::de::Error::custom(format!(
+            "Failed to deserialize both price and amount from level! {e1} {e2}"
+        ))),
     }
 }

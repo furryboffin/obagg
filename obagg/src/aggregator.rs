@@ -18,7 +18,7 @@ pub async fn aggregate_orderbooks(
     conf: &config::Server,
     rx: &mut mpsc::Receiver<Result<Orderbooks, Status>>,
     tx_pool: Arc<Mutex<HashMap<Uuid, mpsc::Sender<Result<Summary, Status>>>>>,
-) -> Result<(), Box<dyn Error>> {
+) -> Result<(), Box<dyn Error + Send + Sync>> {
     let mut binance_ob_cache = Orderbook::new();
     let mut bitstamp_ob_cache = Orderbook::new();
 

@@ -1,5 +1,5 @@
 use futures_util::StreamExt;
-use log::{error, info, debug};
+use log::{debug, error, info};
 use rust_decimal::prelude::*;
 use serde_json;
 use std::{error::Error, sync::Arc};
@@ -19,7 +19,7 @@ const EXCHANGE: &str = "binance";
 pub async fn consume_reduced_orderbooks(
     conf: &config::Server,
     tx: mpsc::Sender<Result<Orderbooks, Status>>,
-) -> Result<(), Box<dyn Error>> {
+) -> Result<(), Box<dyn Error + Send + Sync>> {
     info!("Binance Collector Started, attempting to connect to websocket server...");
     let base = url::Url::parse(&conf.exchanges.binance.websocket.as_str())?;
     let channel = format!("/ws/{}@depth{}@100ms", &conf.ticker, &conf.depth); //<symbol>@depth<levels>@100ms
@@ -32,42 +32,48 @@ pub async fn consume_reduced_orderbooks(
     let read_future = {
         read.for_each(|message| async {
             let mut orderbook = Orderbooks::Binance(Orderbook::new());
-            if let Ok(message) = message {
-                let msg = match message {
-                    Message::Text(s) => s,
-                    _ => {
-                        debug!("Websocket message was not a string!");
-                        return;
-                    }
-                };
-                match serde_json::from_str::<BinanceOrderbookMessage>(&msg) {
-                    Ok(orderbook_message) => {
-                        for bid in orderbook_message.bids {
-                            orderbook
-                                .bids()
-                                .insert(bid.get_price(), bid.get_level(EXCHANGE));
+            match message {
+                Ok(message) => {
+                    // if let Ok(message) = message {
+                    let msg = match message {
+                        Message::Text(s) => s,
+                        _ => {
+                            debug!("Websocket message was not a string!");
+                            return;
                         }
-                        for ask in orderbook_message.asks {
-                            orderbook
-                                .asks()
-                                .insert(ask.get_price(), ask.get_level(EXCHANGE));
+                    };
+                    match serde_json::from_str::<BinanceOrderbookMessage>(&msg) {
+                        Ok(orderbook_message) => {
+                            for bid in orderbook_message.bids {
+                                orderbook
+                                    .bids()
+                                    .insert(bid.get_price(), bid.get_level(EXCHANGE));
+                            }
+                            for ask in orderbook_message.asks {
+                                orderbook
+                                    .asks()
+                                    .insert(ask.get_price(), ask.get_level(EXCHANGE));
+                            }
+                            if let Err(_item) =
+                                tx.send(Result::<Orderbooks, Status>::Ok(orderbook)).await
+                            {
+                                error!("Error sending binance orderbook item.");
+                            };
                         }
-                        if let Err(_item) =
-                            tx.send(Result::<Orderbooks, Status>::Ok(orderbook)).await
-                        {
-                            error!("Error sending binance orderbook item.");
-                        };
-                    }
-                    Err(err) => {
-                        debug!("Message is not an Orderbook message. {}: msg {}", err, msg);
+                        Err(err) => {
+                            debug!("Message is not an Orderbook message. {}: msg {}", err, msg);
+                        }
                     }
                 }
-            } else {
-                error!("Data was not message! Skip this and wait for the next.")
+                Err(err) => {
+                    error!("Data was not message!");
+                    error!("{}", err);
+                }
             }
         })
     };
     read_future.await;
+    error!("Websocket failed and closed!");
     Ok(())
 }
 
@@ -89,7 +95,7 @@ pub async fn consume_reduced_orderbooks(
 pub async fn consume_orderbooks(
     conf: &config::Server,
     tx: mpsc::Sender<Result<Orderbooks, Status>>,
-) -> Result<(), Box<dyn Error>> {
+) -> Result<(), Box<dyn Error + Send + Sync>> {
     // Binance requires that the ticker and params be specified in the url. First we must construct
     // the url.
     let orderbook_arc = Arc::new(Mutex::new(Orderbook::new()));
@@ -112,107 +118,122 @@ pub async fn consume_orderbooks(
     // now that we have the order_book snapshot, we can process updates
     let read_future = {
         read.for_each(|message| async {
-
             let mut is_first_lk = is_first.lock().await;
             let mut prev_u_lk = prev_u.lock().await;
             let mut last_update_id = last_update_id_arc.lock().await;
             let mut orderbook = orderbook_arc.lock().await;
-            if let Ok(message) = message {
-                let msg = match message {
-                    Message::Text(s) => s,
-                    _ => {
-                        debug!("Websocket message was not a string!");
-                        match get_snapshot(conf, &mut orderbook).await {
-                            Ok(lu) => *last_update_id = lu,
-                            Err(e) => {error!("Failed to get snapshot. {}", e); return;}
-                        }
-                        *is_first_lk = true;
-                        return;
-                    }
-                };
-
-                match serde_json::from_str::<BinanceOrderbookUpdateMessage>(&msg) {
-                    Ok(orderbook_message) => {
-                        if orderbook_message.last_update_id <= *last_update_id {
-                            return;
-                        }
-                        if !*is_first_lk && *prev_u_lk + 1 != orderbook_message.first_update_id {
-                            error!("Update out of sequence.");
+            match message {
+                Ok(message) => {
+                    // if let Ok(message) = message {
+                    let msg = match message {
+                        Message::Text(s) => s,
+                        _ => {
+                            debug!("Websocket message was not a string!");
                             match get_snapshot(conf, &mut orderbook).await {
                                 Ok(lu) => *last_update_id = lu,
-                                Err(e) => {error!("Failed to get snapshot. {}", e); return;}
+                                Err(e) => {
+                                    error!("Failed to get snapshot. {}", e);
+                                    return;
+                                }
                             }
                             *is_first_lk = true;
                             return;
                         }
+                    };
 
-                        if *is_first_lk
-                            && orderbook_message.first_update_id <= *last_update_id + 1
-                            && orderbook_message.last_update_id >= *last_update_id + 1
-                        {
-                            *is_first_lk = false;
-                        } else if *is_first_lk {
-                            error!("Update out of sequence.");
-                            match get_snapshot(conf, &mut orderbook).await {
-                                Ok(lu) => *last_update_id = lu,
-                                Err(e) => {error!("Failed to get snapshot. {}", e); return;}
+                    match serde_json::from_str::<BinanceOrderbookUpdateMessage>(&msg) {
+                        Ok(orderbook_message) => {
+                            if orderbook_message.last_update_id <= *last_update_id {
+                                return;
                             }
-                            *is_first_lk = true;
-                            return;
+                            if !*is_first_lk && *prev_u_lk + 1 != orderbook_message.first_update_id
+                            {
+                                error!("Update out of sequence.");
+                                match get_snapshot(conf, &mut orderbook).await {
+                                    Ok(lu) => *last_update_id = lu,
+                                    Err(e) => {
+                                        error!("Failed to get snapshot. {}", e);
+                                        return;
+                                    }
+                                }
+                                *is_first_lk = true;
+                                return;
+                            }
+
+                            if *is_first_lk
+                                && orderbook_message.first_update_id <= *last_update_id + 1
+                                && orderbook_message.last_update_id >= *last_update_id + 1
+                            {
+                                *is_first_lk = false;
+                            } else if *is_first_lk {
+                                error!("Update out of sequence.");
+                                match get_snapshot(conf, &mut orderbook).await {
+                                    Ok(lu) => *last_update_id = lu,
+                                    Err(e) => {
+                                        error!("Failed to get snapshot. {}", e);
+                                        return;
+                                    }
+                                }
+                                *is_first_lk = true;
+                                return;
+                            }
+
+                            *prev_u_lk = orderbook_message.last_update_id;
+
+                            let bids_in = orderbook_message.bids;
+                            utils::handle_update_message(
+                                &bids_in,
+                                &mut orderbook,
+                                conf.depth,
+                                true,
+                                EXCHANGE,
+                            );
+
+                            let asks_in = orderbook_message.asks;
+                            utils::handle_update_message(
+                                &asks_in,
+                                &mut orderbook,
+                                conf.depth,
+                                false,
+                                EXCHANGE,
+                            );
+
+                            // JRF TODO, move this into function
+                            let mut orderbook_reduced = orderbook.clone();
+                            if orderbook.bids.len() > usize::from(conf.depth) {
+                                let bkeys: Vec<&Decimal> = Vec::from_iter(orderbook.bids.keys());
+                                let bkey = bkeys[bkeys.len() - usize::from(conf.depth)].clone();
+                                orderbook_reduced.bids = orderbook_reduced.bids.split_off(&bkey);
+                            }
+                            if orderbook.asks.len() > usize::from(conf.depth) {
+                                let akeys: Vec<&Decimal> = Vec::from_iter(orderbook.asks.keys());
+                                let akey = akeys[usize::from(conf.depth)].clone();
+                                orderbook_reduced.asks.split_off(&akey);
+                            }
+
+                            if let Err(_item) = tx
+                                .send(Result::<Orderbooks, Status>::Ok(Orderbooks::Binance(
+                                    orderbook_reduced,
+                                )))
+                                .await
+                            {
+                                error!("Error sending binance orderbook item.");
+                            };
                         }
-
-                        *prev_u_lk = orderbook_message.last_update_id;
-
-                        let bids_in = orderbook_message.bids;
-                        utils::handle_update_message(
-                            &bids_in,
-                            &mut orderbook,
-                            conf.depth,
-                            true,
-                            EXCHANGE
-                        );
-
-                        let asks_in = orderbook_message.asks;
-                        utils::handle_update_message(
-                            &asks_in,
-                            &mut orderbook,
-                            conf.depth,
-                            false,
-                            EXCHANGE
-                        );
-
-                        // JRF TODO, move this into function
-                        let mut orderbook_reduced = orderbook.clone();
-                        if orderbook.bids.len() > usize::from(conf.depth) {
-                            let bkeys: Vec<&Decimal> = Vec::from_iter(orderbook.bids.keys());
-                            let bkey = bkeys[bkeys.len() - usize::from(conf.depth)].clone();
-                            orderbook_reduced.bids = orderbook_reduced.bids.split_off(&bkey);
+                        Err(err) => {
+                            debug!("Message is not an Orderbook message. {}: msg {}", err, msg);
                         }
-                        if orderbook.asks.len() > usize::from(conf.depth) {
-                            let akeys: Vec<&Decimal> = Vec::from_iter(orderbook.asks.keys());
-                            let akey = akeys[usize::from(conf.depth)].clone();
-                            orderbook_reduced.asks.split_off(&akey);
-                        }
-
-                        if let Err(_item) = tx
-                            .send(Result::<Orderbooks, Status>::Ok(Orderbooks::Binance(
-                                orderbook_reduced,
-                            )))
-                            .await
-                        {
-                            error!("Error sending binance orderbook item.");
-                        };
-                    },
-                    Err(err) => {
-                        debug!("Message is not an Orderbook message. {}: msg {}", err, msg);
                     }
                 }
-            } else {
-                error!("Data was not message! Skip this and wait for the next.");
+                Err(err) => {
+                    error!("Data was not message!");
+                    error!("{}", err);
+                }
             }
         })
     };
     read_future.await;
+    error!("Websocket failed and closed!");
     Ok(())
 }
 
@@ -222,7 +243,7 @@ pub async fn consume_orderbooks(
 async fn get_snapshot(
     conf: &config::Server,
     orderbook: &mut Orderbook,
-) -> Result<u64, Box<dyn Error>> {
+) -> Result<u64, Box<dyn Error + Send + Sync>> {
     let api_base = url::Url::parse(&conf.exchanges.binance.api.as_str())?;
     let api_channel = format!(
         "/api/v3/depth?symbol={}&limit={}",
