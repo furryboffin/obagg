@@ -6,11 +6,16 @@ Obagg is an Orderbook Aggregator gRPC server. This initial version aggregates
 orderbook websockets streams from binance and bitstamp, but can be easily
 extended to include other exchanges. Obagg handles errors in the websockets
 consumers thus maintaining an open stream at all times. Note that the server is
-designed such that if no clients are connected, incoming orderbook messages are
-discarded. Only once at least one client is connected is any attempt to
-aggregate and push aggregated orderbooks to client stream producers. Note also
-that only one instantiation of the websocket consumers and aggregator are needed
-regardless of the number of clients connected.
+designed such that if no clients are connected, the most recent incoming
+orderbook messages are cached and the aggregated book created, while no
+aggregated book is pushed out to client connection producers since there are
+none to iterate over. 
+
+Once at least one client is connected the aggregator will now have an up-to-date
+cache and aggregated book for the very first output message pushed to the
+first available client stream producer. Note also that only one instantiation
+of the websocket consumers and aggregator are needed regardless of the number of
+clients connected.
 
 ## Components
 
@@ -112,3 +117,12 @@ There are still a few improvements that could be made to the server:
 
 - Add documentation for the gRPC server. One could use swagger to generate a
   served docuementation as an example.
+
+- To alert connected clients of interruptions to the orderbook streams due to
+  websocket failures, it would be prudent to add some form of quality control
+  such that we guarantee the validity of any aggregated orderbooks. One simple
+  way to achieve this would be to check for contiguity between messages from the
+  websocket consumers' output streams. If a websocket dies and is relaunched,
+  the subsequent event id arriving at the aggregator might not be contiguous,
+  the aggregator could then hold off on pushing aggregated books until
+  contiguity is restored. 

@@ -20,10 +20,6 @@ pub async fn aggregate_orderbooks(
 
     while let Some(msg) = rx.recv().await {
         if let Ok(orderbook) = msg {
-            // wait until we have clients connected.
-            if tx_pool.lock().await.len() == 0 {
-                continue;
-            }
             let mut aggregated_orderbook = Orderbook::new();
             let tx_pool_locked = tx_pool.lock().await;
             let mut tx_pool_iter = tx_pool_locked.iter();
