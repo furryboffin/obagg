@@ -1,8 +1,5 @@
 use std::{collections::HashMap, error::Error, sync::Arc};
-use tokio::{
-    sync::{mpsc, Mutex},
-    time::{sleep, Duration},
-};
+use tokio::sync::{mpsc, Mutex};
 use tonic::Status;
 use uuid::Uuid;
 
@@ -25,10 +22,8 @@ pub async fn aggregate_orderbooks(
         if let Ok(orderbook) = msg {
             // wait until we have clients connected.
             if tx_pool.lock().await.len() == 0 {
-                sleep(Duration::from_millis(100)).await;
                 continue;
             }
-
             let mut aggregated_orderbook = Orderbook::new();
             let tx_pool_locked = tx_pool.lock().await;
             let mut tx_pool_iter = tx_pool_locked.iter();
