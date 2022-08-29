@@ -1,5 +1,4 @@
 pub use client::client;
-pub use config as lib_config;
 pub use server::server;
 pub mod orderbook {
     tonic::include_proto!("orderbook");

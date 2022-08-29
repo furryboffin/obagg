@@ -124,23 +124,6 @@ pub fn handle_update_message(
 //     })))
 // }
 
-// let repeat = std::iter::repeat(Summary {
-//     spread: 10.0,
-//     bids: vec![
-//         Level {
-//             exchange: "binance".to_string(),
-//             price: 100.1,
-//             amount: 500.1,
-//         }
-//     ],
-//     asks: vec![
-//         Level {
-//             exchange: "binance".to_string(),
-//             price: 100.1,
-//             amount, 500.1,
-//         }
-//     ]
-// })
 
 #[cfg(test)]
 mod tests {

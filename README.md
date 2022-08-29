@@ -1,13 +1,20 @@
 # Obagg (Orderbook Aggregator)
 
+## Summary
+
+Obagg is an Orderbook Aggregator gRPC server. This initial version aggregates
+orderbook websockets streams from binance and bitstamp, but can be easily
+extended to include other exchanges. Obagg handles errors in the websockets
+consumers thus maintaining an open stream at all times.
+
 ## Components
 
 The application is separated in distinct components, each provided by a
-dedicated executable file. Nothing is provided to start all the components.
-Components are to be started independently as required.
+dedicated executable file. Components are to be started independently as
+required.
 
 - `obagg grpc`: Start the Ordrebook Aggregator gRPC Stream Server.
-- `obagg client`: Start a gRPC Client that connects to the gRPC Stream.
+- `obagg client`: Start a simple gRPC Client that connects to the gRPC Stream.
 - `obagg version`: Get the version of obagg.
 
 
@@ -86,22 +93,7 @@ depths over 20.
 
 ## Future Improvements
 
-The initial version is very rudimentary, much can be done to improve the server:
-
-- Currently the exchange websocket consumers run in async function calls in the
-main server thread. If one found that more resources were necessary to cope with
-a larger number of client connections, one could spawn threads for them.
-
-- If a websocket consumer returns an error the server will stop working. There
-are several ways to address this issue. A simple approach would be to handle
-returned errors and relaunch all the tasks if any of them fail. A better
-approach might be to add a health monitor service that checks the health of the
-consumers and the aggregator, relaunching them automatically in case they have
-issues. It is also possible to have the tasks themselves manage their own state,
-internally detecting any errors and relaunching internally when necessary. It
-might be prudent to use a hybrid approach such that wherever simple the task
-can manage it's own failures, but anything more terminal can be passed back as
-an error which can then be handled by the main thread.
+There are still a few improvements that could be made to the server:
 
 - Unit tests for the consumers can be added as well as the aggregator.
 
