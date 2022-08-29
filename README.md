@@ -104,3 +104,6 @@ There are still a few improvements that could be made to the server:
   to serve only one ticker, allow the client to send a message to the gRPC
   server to select the ticker that they want. This would require adding inbound 
   message handling to the gRPC server implementation.
+
+- Add documentation for the gRPC server. One could use swagger to generate a
+  served docuementation as an example.
