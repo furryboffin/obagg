@@ -18,7 +18,7 @@ pub async fn client(conf: config::Server) -> Result<(), Box<dyn Error>> {
         .build()?;
     let channel;
     loop {
-        info!("Client attempting to connect to : {:?}", uri.clone());
+        info!("Client attempting to connect to : {:?}", uri);
         let res = tonic::transport::Channel::builder(uri.clone())
             .connect()
             .await;
