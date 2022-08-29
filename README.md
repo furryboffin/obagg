@@ -5,7 +5,12 @@
 Obagg is an Orderbook Aggregator gRPC server. This initial version aggregates
 orderbook websockets streams from binance and bitstamp, but can be easily
 extended to include other exchanges. Obagg handles errors in the websockets
-consumers thus maintaining an open stream at all times.
+consumers thus maintaining an open stream at all times. Note that the server is
+designed such that if no clients are connected, incoming orderbook messages are
+discarded. Only once at least one client is connected is any attempt to
+aggregate and push aggregated orderbooks to client stream producers. Note also
+that only one instantiation of the websocket consumers and aggregator are needed
+regardless of the number of clients connected.
 
 ## Components
 
