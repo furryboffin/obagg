@@ -6,7 +6,7 @@
 # bind_address: "[::1]:50051"
 bind_address: "127.0.0.1:50051"
 ticker: ltcbtc
-depth: 20
+depth: 10
 exchanges:
   binance:
     enable: true
