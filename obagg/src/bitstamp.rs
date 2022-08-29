@@ -33,7 +33,7 @@ pub async fn consume_orderbooks(
 
     let read_future = {
         read.for_each(|message| async {
-            let mut orderbook = Orderbooks::Bitstamp(Orderbook::new());
+            let mut orderbook = Orderbook::new();
             match message {
                 Ok(message) => {
                     let msg = match message {
@@ -47,16 +47,19 @@ pub async fn consume_orderbooks(
                         Ok(orderbook_message) => {
                             for bid in orderbook_message.data.bids {
                                 orderbook
-                                    .bids()
+                                    .bids
                                     .insert(bid.get_price(), bid.get_level(EXCHANGE));
                             }
                             for ask in orderbook_message.data.asks {
                                 orderbook
-                                    .asks()
+                                    .asks
                                     .insert(ask.get_price(), ask.get_level(EXCHANGE));
                             }
-                            if let Err(_item) =
-                                tx.send(Result::<Orderbooks, Status>::Ok(orderbook)).await
+                            if let Err(_item) = tx
+                                .send(Result::<Orderbooks, Status>::Ok(Orderbooks::Bitstamp(
+                                    orderbook.reduce(conf.depth),
+                                )))
+                                .await
                             {
                                 error!("Error sending bitstamp orderbook item.");
                             };

@@ -5,21 +5,6 @@ use std::collections::BTreeMap;
 use crate::orderbook::Level;
 
 #[derive(Clone, Debug)]
-pub struct AggregatedOrderbook {
-    pub bids: BTreeMap<Decimal, Level>,
-    pub asks: BTreeMap<Decimal, Level>,
-}
-
-impl AggregatedOrderbook {
-    pub fn new() -> Self {
-        Self {
-            bids: BTreeMap::new(),
-            asks: BTreeMap::new(),
-        }
-    }
-}
-
-#[derive(Clone, Debug)]
 pub struct Orderbook {
     pub bids: BTreeMap<Decimal, Level>,
     pub asks: BTreeMap<Decimal, Level>,
@@ -31,6 +16,20 @@ impl Orderbook {
             bids: BTreeMap::new(),
             asks: BTreeMap::new(),
         }
+    }
+
+    pub fn reduce(&self, depth: usize) -> Self {
+        let mut orderbook_reduced = self.clone();
+        if self.bids.len() > usize::from(depth) && self.asks.len() > usize::from(depth) {
+            let bkeys: Vec<&Decimal> = Vec::from_iter(self.bids.keys());
+            let bkey = bkeys[bkeys.len() - usize::from(depth)].clone();
+            orderbook_reduced.bids = orderbook_reduced.bids.split_off(&bkey);
+
+            let akeys: Vec<&Decimal> = Vec::from_iter(self.asks.keys());
+            let akey = akeys[usize::from(depth)].clone();
+            orderbook_reduced.asks.split_off(&akey);
+        }
+        orderbook_reduced
     }
 }
 

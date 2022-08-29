@@ -1,4 +1,3 @@
-use rust_decimal::Decimal;
 use std::{collections::HashMap, error::Error, sync::Arc};
 use tokio::{
     sync::{mpsc, Mutex},
@@ -10,7 +9,7 @@ use uuid::Uuid;
 use crate::utils;
 use crate::{
     config,
-    definitions::{AggregatedOrderbook, Orderbook, Orderbooks},
+    definitions::{Orderbook, Orderbooks},
     orderbook::{Level, Summary},
 };
 
@@ -30,13 +29,13 @@ pub async fn aggregate_orderbooks(
                 continue;
             }
 
-            let mut aggregated_orderbook = AggregatedOrderbook::new();
+            let mut aggregated_orderbook = Orderbook::new();
             let tx_pool_locked = tx_pool.lock().await;
             let mut tx_pool_iter = tx_pool_locked.iter();
             let mut futures = vec![];
 
-            // match the type of incoming message and cache it in the appropriate book type
-            // JRF TODO. at this point we need to map the keys to the new key format that includes the amount so that we can get the ordering correct.
+            // match the type of incoming message, cache it in the appropriate book type and
+            // aggregate the cache of the other book type into the aggregated_orderbook.
             match orderbook {
                 Orderbooks::Binance(binance_orderbook) => {
                     binance_ob_cache = binance_orderbook.clone();
@@ -102,20 +101,7 @@ pub async fn aggregate_orderbooks(
                 }
             }
 
-            let mut aggregated_orderbook_reduced = aggregated_orderbook.clone();
-
-            if aggregated_orderbook_reduced.bids.len() > usize::from(conf.depth) {
-                let bkeys: Vec<&Decimal> = Vec::from_iter(aggregated_orderbook_reduced.bids.keys());
-                let bkey = bkeys[bkeys.len() - usize::from(conf.depth)].clone();
-                aggregated_orderbook_reduced.bids =
-                    aggregated_orderbook_reduced.bids.split_off(&bkey);
-            }
-
-            if aggregated_orderbook_reduced.asks.len() > usize::from(conf.depth) {
-                let akeys: Vec<&Decimal> = Vec::from_iter(aggregated_orderbook_reduced.asks.keys());
-                let akey = akeys[usize::from(conf.depth)].clone();
-                aggregated_orderbook_reduced.asks.split_off(&akey);
-            }
+            let aggregated_orderbook_reduced = aggregated_orderbook.reduce(conf.depth);
 
             // build the Summary
             let bids_out: Vec<Level> = aggregated_orderbook_reduced
@@ -136,12 +122,10 @@ pub async fn aggregate_orderbooks(
                 futures.push(tx.send(Ok(summary.clone())));
             }
 
-            let mut i = 0;
             for r in futures::future::join_all(futures).await {
                 if let Err(_item) = r {
-                    println!("Error sending aggregated orderbook item : {:?}", i);
+                    println!("Error sending aggregated orderbook Summary");
                 }
-                i += 1;
             }
         }
     }

@@ -2,15 +2,7 @@ syntax = "proto3";
 package orderbook;
 
 service OrderbookAggregator {
-
     rpc BookSummaryStream(Empty) returns (stream Summary);
-
-    // JRF TODO. The first implementation is a simple stream of the book on each
-    // send. A better implementation would be to start with a simple summary,
-    // and then open a stream to pull updates to the book, this reduces the
-    // amount of data that needs to be sent.
-    // rpc CloseSummaryStream() returns ();
-
 }
 
 message Empty {}

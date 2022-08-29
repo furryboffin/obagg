@@ -124,7 +124,6 @@ pub fn handle_update_message(
 //     })))
 // }
 
-
 #[cfg(test)]
 mod tests {
     use crate::config;

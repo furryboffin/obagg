@@ -1,6 +1,5 @@
 use futures_util::StreamExt;
 use log::{debug, error, info};
-use rust_decimal::prelude::*;
 use serde_json;
 use std::{error::Error, sync::Arc};
 use tokio::sync::{mpsc, Mutex};
@@ -198,18 +197,8 @@ pub async fn consume_orderbooks(
                                 EXCHANGE,
                             );
 
-                            // JRF TODO, move this into function
-                            let mut orderbook_reduced = orderbook.clone();
-                            if orderbook.bids.len() > usize::from(conf.depth) {
-                                let bkeys: Vec<&Decimal> = Vec::from_iter(orderbook.bids.keys());
-                                let bkey = bkeys[bkeys.len() - usize::from(conf.depth)].clone();
-                                orderbook_reduced.bids = orderbook_reduced.bids.split_off(&bkey);
-                            }
-                            if orderbook.asks.len() > usize::from(conf.depth) {
-                                let akeys: Vec<&Decimal> = Vec::from_iter(orderbook.asks.keys());
-                                let akey = akeys[usize::from(conf.depth)].clone();
-                                orderbook_reduced.asks.split_off(&akey);
-                            }
+                            // reduce the depth of the orderbook if required
+                            let orderbook_reduced = orderbook.reduce(conf.depth);
 
                             if let Err(_item) = tx
                                 .send(Result::<Orderbooks, Status>::Ok(Orderbooks::Binance(
