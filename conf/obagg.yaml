@@ -18,7 +18,7 @@ exchanges:
     enable: true
     websocket: "wss://ws.bitstamp.net"
     api: ""
-    ping_period: 10 # period used to send regular ping to websocket server.
+    ping_period: 5 # period used to send regular ping to websocket server.
 
 # When different exchanges have identical levels in their books we must choose
 # the order. Setting this to true will order higher amounts closer to center

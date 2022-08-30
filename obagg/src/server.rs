@@ -25,15 +25,14 @@ pub async fn server(conf: config::Server) -> Result<(), Box<dyn Error + Send + S
     let aggregator_conf = conf.clone();
 
     // launch the server in the main thread.
-    let server_future = Box::pin(
+    let server_future: Pin<Box<dyn Future<Output = Result<(), Box<dyn Error + Send + Sync>>>>> = Box::pin(
         Server::builder()
             .add_service(
                 orderbook::orderbook_aggregator_server::OrderbookAggregatorServer::new(server),
             )
             .serve(conf.bind_address)
             .map_err(|e| e.into()),
-    )
-        as Pin<Box<dyn Future<Output = Result<(), Box<dyn Error + Send + Sync>>>>>;
+    );
     info!(
         "Started gRPC Server... Bind Address: {:?}",
         &conf.bind_address
