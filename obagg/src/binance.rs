@@ -33,10 +33,10 @@ pub async fn consume_reduced_orderbooks(
             let mut orderbook = Orderbooks::Binance(Orderbook::new());
             match message {
                 Ok(message) => {
-                    // if let Ok(message) = message {
                     let msg = match message {
                         Message::Text(s) => s,
                         _ => {
+                            // JRF TODO do I need to reconnect when this happens?
                             debug!("Websocket message was not a string!");
                             return;
                         }
@@ -60,6 +60,7 @@ pub async fn consume_reduced_orderbooks(
                             };
                         }
                         Err(err) => {
+                            // JRF TODO do I need to reconnect when this happens?
                             debug!("Message is not an Orderbook message. {}: msg {}", err, msg);
                         }
                     }
@@ -123,10 +124,10 @@ pub async fn consume_orderbooks(
             let mut orderbook = orderbook_arc.lock().await;
             match message {
                 Ok(message) => {
-                    // if let Ok(message) = message {
                     let msg = match message {
                         Message::Text(s) => s,
                         _ => {
+                            // JRF TODO do I need to reconnect when this happens?
                             debug!("Websocket message was not a string!");
                             match get_snapshot(conf, &mut orderbook).await {
                                 Ok(lu) => *last_update_id = lu,
@@ -210,6 +211,7 @@ pub async fn consume_orderbooks(
                             };
                         }
                         Err(err) => {
+                            // JRF TODO do I need to reconnect when this happens?
                             debug!("Message is not an Orderbook message. {}: msg {}", err, msg);
                         }
                     }

@@ -39,6 +39,7 @@ pub async fn consume_orderbooks(
                     let msg = match message {
                         Message::Text(s) => s,
                         _ => {
+                            // JRF TODO do I need to reconnect when this happens?
                             debug!("Websocket message was not a string!");
                             return;
                         }
@@ -65,6 +66,7 @@ pub async fn consume_orderbooks(
                             };
                         }
                         Err(err) => {
+                            // JRF TODO do I need to reconnect when this happens?
                             debug!("Message is not an Orderbook message. {}: msg {}", err, msg);
                         }
                     }
