@@ -35,11 +35,26 @@ pub async fn consume_reduced_orderbooks(
                 Ok(message) => {
                     let msg = match message {
                         Message::Text(s) => s,
-                        _ => {
-                            // JRF TODO do I need to reconnect when this happens?
-                            debug!("Websocket message was not a string!");
+                        Message::Close(c) => {
+                            debug!("Message::Close received : {}", c.expect("Close Frame was None!"));
                             return;
-                        }
+                        },
+                        Message::Binary(b) => {
+                            debug!("Message::Binary received : length = {}", b.len());
+                            return;
+                        },
+                        Message::Frame(f) => {
+                            debug!("Message::Frame received : {}", f);
+                            return;
+                        },
+                        Message::Ping(p) => {
+                            debug!("Message::Ping received : length = {}", p.len());
+                            return;
+                        },
+                        Message::Pong(p) => {
+                            debug!("Message::Pong received : length = {}", p.len());
+                            return;
+                        },
                     };
                     match serde_json::from_str::<BinanceOrderbookMessage>(&msg) {
                         Ok(orderbook_message) => {
