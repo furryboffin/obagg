@@ -60,11 +60,6 @@ pub async fn consume_orderbooks(
                         }
                         Message::Ping(p) => {
                             debug!("Message::Ping received : length = {}", p.len());
-                            if let Err(err) =
-                                write_arc.lock().await.send(Message::Pong(vec![0])).await
-                            {
-                                error!("Failed to send pong! : {}", err);
-                            };
                             return;
                         }
                         Message::Pong(p) => {
