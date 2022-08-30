@@ -12,10 +12,13 @@ exchanges:
     enable: true
     websocket: "wss://stream.binance.com:9443"
     api: "https://api.binance.com"
+    ping_period: 10 # period used to send regular ping to websocket server.
+    period: "1000ms" # optional min interval between websocket messages.
   bitstamp:
     enable: true
     websocket: "wss://ws.bitstamp.net"
     api: ""
+    ping_period: 10 # period used to send regular ping to websocket server.
 
 # When different exchanges have identical levels in their books we must choose
 # the order. Setting this to true will order higher amounts closer to center

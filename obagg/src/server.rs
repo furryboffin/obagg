@@ -44,18 +44,15 @@ pub async fn server(conf: config::Server) -> Result<(), Box<dyn Error + Send + S
         tokio::spawn(async move {
             info!("Spawned binance websocket consumer.");
             if binance_conf.depth <= 20 {
-                while let Ok(_) = binance::consume_reduced_orderbooks(
-                    &binance_conf,
-                    &binance_orderbook_ws_tx,
-                )
-                .await
+                while let Ok(_) =
+                    binance::consume_reduced_orderbooks(&binance_conf, &binance_orderbook_ws_tx)
+                        .await
                 {
                     warn!("Relaunching binance websocket consumer.");
                 }
             } else {
                 while let Ok(_) =
-                    binance::consume_orderbooks(&binance_conf, &binance_orderbook_ws_tx)
-                        .await
+                    binance::consume_orderbooks(&binance_conf, &binance_orderbook_ws_tx).await
                 {
                     warn!("Relaunching binance websocket consumer.");
                 }

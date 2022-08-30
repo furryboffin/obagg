@@ -8,9 +8,11 @@ pub struct Apis {
 
 #[derive(Deserialize, Clone)]
 pub struct Exchange {
+    pub api: String,
     pub enable: bool,
     pub websocket: String,
-    pub api: String,
+    pub ping_period: u16,
+    pub period: Option<String>,
 }
 
 #[derive(Deserialize, Clone)]

@@ -21,7 +21,16 @@ pub async fn consume_reduced_orderbooks(
 ) -> Result<(), Box<dyn Error + Send + Sync>> {
     info!("Binance Collector Started, attempting to connect to websocket server...");
     let base = url::Url::parse(&conf.exchanges.binance.websocket.as_str())?;
-    let channel = format!("/ws/{}@depth{}@100ms", &conf.ticker, &conf.depth); //<symbol>@depth<levels>@100ms
+    let channel = format!(
+        "/ws/{}@depth{}@{}",
+        conf.ticker,
+        conf.depth,
+        conf.exchanges
+            .binance
+            .period
+            .as_ref()
+            .unwrap_or(&String::from("100ms"))
+    ); //<symbol>@depth<levels>@100ms
     let url = base.join(channel.as_str())?;
     let (ws_stream, _) = connect_async(url).await?;
     info!("Binance WebSocket handshake has been successfully completed.");
@@ -30,10 +39,10 @@ pub async fn consume_reduced_orderbooks(
     let write_arc = Arc::new(Mutex::new(write));
 
     // first we start a task that sends pings to the server every 20 seconds
-    let ping_future = utils::ping_sender(write_arc.clone());
+    let ping_future = utils::ping_sender(write_arc.clone(), conf.exchanges.binance.ping_period);
 
     // now we handle incoming messages
-    let read_future = Box::pin( {
+    let read_future = Box::pin({
         read.for_each(|message| async {
             let mut orderbook = Orderbooks::Binance(Orderbook::new());
             match message {
@@ -41,28 +50,33 @@ pub async fn consume_reduced_orderbooks(
                     let msg = match message {
                         Message::Text(s) => s,
                         Message::Close(c) => {
-                            debug!("Message::Close received : {}", c.expect("Close Frame was None!"));
+                            debug!(
+                                "Message::Close received : {}",
+                                c.expect("Close Frame was None!")
+                            );
                             return;
-                        },
+                        }
                         Message::Binary(b) => {
                             debug!("Message::Binary received : length = {}", b.len());
                             return;
-                        },
+                        }
                         Message::Frame(f) => {
                             debug!("Message::Frame received : {}", f);
                             return;
-                        },
+                        }
                         Message::Ping(p) => {
                             debug!("Message::Ping received : length = {}", p.len());
-                            if let Err(err) = write_arc.lock().await.send(Message::Pong(vec![0])).await {
+                            if let Err(err) =
+                                write_arc.lock().await.send(Message::Pong(vec![0])).await
+                            {
                                 error!("Failed to send pong! : {}", err);
                             };
                             return;
-                        },
+                        }
                         Message::Pong(p) => {
                             debug!("Message::Pong received : length = {}", p.len());
                             return;
-                        },
+                        }
                     };
                     match serde_json::from_str::<BinanceOrderbookMessage>(&msg) {
                         Ok(orderbook_message) => {
@@ -123,7 +137,15 @@ pub async fn consume_orderbooks(
     // the url.
     let orderbook_arc = Arc::new(Mutex::new(Orderbook::new()));
     let ws_base = url::Url::parse(&conf.exchanges.binance.websocket.as_str())?;
-    let ws_channel = format!("/ws/{}@depth@100ms", &conf.ticker);
+    let ws_channel = format!(
+        "/ws/{}@depth@{}",
+        &conf.ticker,
+        conf.exchanges
+            .binance
+            .period
+            .as_ref()
+            .unwrap_or(&String::from("100ms"))
+    );
     let ws_url = ws_base.join(ws_channel.as_str())?;
 
     info!("Binance Collector Started, attempting to connect to websocket server...");
@@ -140,7 +162,7 @@ pub async fn consume_orderbooks(
     let write_arc = Arc::new(Mutex::new(write));
 
     // first we start a task that sends pings to the server every 20 seconds
-    let ping_future = utils::ping_sender(write_arc.clone());
+    let ping_future = utils::ping_sender(write_arc.clone(), conf.exchanges.binance.ping_period);
 
     // now that we have the order_book snapshot, we can process updates
     let read_future = {
@@ -154,28 +176,33 @@ pub async fn consume_orderbooks(
                     let msg = match message {
                         Message::Text(s) => s,
                         Message::Close(c) => {
-                            debug!("Message::Close received : {}", c.expect("Close Frame was None!"));
+                            debug!(
+                                "Message::Close received : {}",
+                                c.expect("Close Frame was None!")
+                            );
                             return;
-                        },
+                        }
                         Message::Binary(b) => {
                             debug!("Message::Binary received : length = {}", b.len());
                             return;
-                        },
+                        }
                         Message::Frame(f) => {
                             debug!("Message::Frame received : {}", f);
                             return;
-                        },
+                        }
                         Message::Ping(p) => {
                             debug!("Message::Ping received : length = {}", p.len());
-                            if let Err(err) = write_arc.lock().await.send(Message::Pong(vec![0])).await {
+                            if let Err(err) =
+                                write_arc.lock().await.send(Message::Pong(vec![0])).await
+                            {
                                 error!("Failed to send pong! : {}", err);
                             };
                             return;
-                        },
+                        }
                         Message::Pong(p) => {
                             debug!("Message::Pong received : length = {}", p.len());
                             return;
-                        },
+                        }
                     };
 
                     match serde_json::from_str::<BinanceOrderbookUpdateMessage>(&msg) {

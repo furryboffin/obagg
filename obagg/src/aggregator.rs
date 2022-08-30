@@ -1,4 +1,4 @@
-use log::{error, debug};
+use log::{debug, error};
 use std::{collections::HashMap, error::Error, sync::Arc};
 use tokio::sync::{mpsc, Mutex};
 use tonic::Status;
@@ -96,7 +96,6 @@ pub async fn aggregate_orderbooks(
 
                 let aggregated_orderbook_reduced = aggregated_orderbook.reduce(conf.depth);
 
-
                 let tx_pool_locked = tx_pool.lock().await;
                 if tx_pool_locked.len() == 0 {
                     continue;
@@ -109,7 +108,8 @@ pub async fn aggregate_orderbooks(
                     .into_values()
                     .rev()
                     .collect();
-                let asks_out: Vec<Level> = aggregated_orderbook_reduced.asks.into_values().collect();
+                let asks_out: Vec<Level> =
+                    aggregated_orderbook_reduced.asks.into_values().collect();
 
                 let summary = Summary {
                     spread: asks_out[0].price - bids_out[0].price,
@@ -127,7 +127,7 @@ pub async fn aggregate_orderbooks(
                         error!("Error sending aggregated orderbook Summary");
                     }
                 }
-            },
+            }
             Err(status) => {
                 error!("Input message was not an orderbook : {}", status);
             }
