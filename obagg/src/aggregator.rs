@@ -1,4 +1,4 @@
-use log::error;
+use log::{error, debug};
 use std::{collections::HashMap, error::Error, sync::Arc};
 use tokio::sync::{mpsc, Mutex};
 use tonic::Status;
@@ -28,6 +28,7 @@ pub async fn aggregate_orderbooks(
                 // aggregate the cache of the other book type into the aggregated_orderbook.
                 match orderbook {
                     Orderbooks::Binance(binance_orderbook) => {
+                        debug!("Binance orderbook message received.");
                         binance_ob_cache = binance_orderbook.clone();
 
                         aggregated_orderbook.bids = bitstamp_ob_cache
@@ -61,6 +62,8 @@ pub async fn aggregate_orderbooks(
                         );
                     }
                     Orderbooks::Bitstamp(bitstamp_orderbook) => {
+                        debug!("Bitstamp orderbook message received.");
+
                         bitstamp_ob_cache = bitstamp_orderbook.clone();
                         aggregated_orderbook.bids = binance_ob_cache
                             .bids

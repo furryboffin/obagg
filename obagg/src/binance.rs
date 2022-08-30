@@ -1,4 +1,4 @@
-use futures_util::StreamExt;
+use futures::{SinkExt, StreamExt};
 use log::{debug, error, info};
 use serde_json;
 use std::{error::Error, sync::Arc};
@@ -26,9 +26,14 @@ pub async fn consume_reduced_orderbooks(
     let (ws_stream, _) = connect_async(url).await?;
     info!("Binance WebSocket handshake has been successfully completed.");
 
-    let (_, read) = ws_stream.split();
+    let (write, read) = ws_stream.split();
+    let write_arc = Arc::new(Mutex::new(write));
 
-    let read_future = {
+    // first we start a task that sends pings to the server every 20 seconds
+    let ping_future = utils::ping_sender(write_arc.clone());
+
+    // now we handle incoming messages
+    let read_future = Box::pin( {
         read.for_each(|message| async {
             let mut orderbook = Orderbooks::Binance(Orderbook::new());
             match message {
@@ -49,6 +54,9 @@ pub async fn consume_reduced_orderbooks(
                         },
                         Message::Ping(p) => {
                             debug!("Message::Ping received : length = {}", p.len());
+                            if let Err(err) = write_arc.lock().await.send(Message::Pong(vec![0])).await {
+                                error!("Failed to send pong! : {}", err);
+                            };
                             return;
                         },
                         Message::Pong(p) => {
@@ -76,7 +84,7 @@ pub async fn consume_reduced_orderbooks(
                         }
                         Err(err) => {
                             // JRF TODO do I need to reconnect when this happens?
-                            debug!("Message is not an Orderbook message. {}: msg {}", err, msg);
+                            error!("Message is not an Orderbook message. {}: msg {}", err, msg);
                         }
                     }
                 }
@@ -86,8 +94,8 @@ pub async fn consume_reduced_orderbooks(
                 }
             }
         })
-    };
-    read_future.await;
+    });
+    futures::future::select(Box::pin(read_future), Box::pin(ping_future)).await;
     error!("Websocket failed and closed!");
     Ok(())
 }
@@ -121,7 +129,7 @@ pub async fn consume_orderbooks(
     info!("Binance Collector Started, attempting to connect to websocket server...");
     let (ws_stream, _) = connect_async(ws_url).await?;
     info!("Binance WebSocket handshake has been successfully completed.");
-    let (_, read) = ws_stream.split();
+    let (write, read) = ws_stream.split();
 
     // get the snapshot
     let last_update_id_arc = Arc::new(Mutex::new(
@@ -129,6 +137,10 @@ pub async fn consume_orderbooks(
     ));
     let is_first = Arc::new(Mutex::new(true));
     let prev_u = Arc::new(Mutex::new(0));
+    let write_arc = Arc::new(Mutex::new(write));
+
+    // first we start a task that sends pings to the server every 20 seconds
+    let ping_future = utils::ping_sender(write_arc.clone());
 
     // now that we have the order_book snapshot, we can process updates
     let read_future = {
@@ -141,19 +153,29 @@ pub async fn consume_orderbooks(
                 Ok(message) => {
                     let msg = match message {
                         Message::Text(s) => s,
-                        _ => {
-                            // JRF TODO do I need to reconnect when this happens?
-                            debug!("Websocket message was not a string!");
-                            match get_snapshot(conf, &mut orderbook).await {
-                                Ok(lu) => *last_update_id = lu,
-                                Err(e) => {
-                                    error!("Failed to get snapshot. {}", e);
-                                    return;
-                                }
-                            }
-                            *is_first_lk = true;
+                        Message::Close(c) => {
+                            debug!("Message::Close received : {}", c.expect("Close Frame was None!"));
                             return;
-                        }
+                        },
+                        Message::Binary(b) => {
+                            debug!("Message::Binary received : length = {}", b.len());
+                            return;
+                        },
+                        Message::Frame(f) => {
+                            debug!("Message::Frame received : {}", f);
+                            return;
+                        },
+                        Message::Ping(p) => {
+                            debug!("Message::Ping received : length = {}", p.len());
+                            if let Err(err) = write_arc.lock().await.send(Message::Pong(vec![0])).await {
+                                error!("Failed to send pong! : {}", err);
+                            };
+                            return;
+                        },
+                        Message::Pong(p) => {
+                            debug!("Message::Pong received : length = {}", p.len());
+                            return;
+                        },
                     };
 
                     match serde_json::from_str::<BinanceOrderbookUpdateMessage>(&msg) {
@@ -238,7 +260,7 @@ pub async fn consume_orderbooks(
             }
         })
     };
-    read_future.await;
+    futures::future::select(Box::pin(read_future), Box::pin(ping_future)).await;
     error!("Websocket failed and closed!");
     Ok(())
 }

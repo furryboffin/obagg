@@ -1,14 +1,14 @@
 use futures::{SinkExt, StreamExt};
 use log::{debug, error, info};
 use serde_json;
-use std::error::Error;
-use tokio::sync::mpsc;
+use std::{error::Error, sync::Arc};
+use tokio::sync::{mpsc, Mutex};
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 use tonic::Status;
 
 use crate::{
     config,
-    definitions::{BitstampOrderbookMessage, Orderbook, Orderbooks},
+    definitions::{BitstampOrderbookMessage, Orderbook, Orderbooks}, utils,
 };
 
 const EXCHANGE: &str = "bitstamp";
@@ -30,6 +30,10 @@ pub async fn consume_orderbooks(
         conf.ticker
     );
     write.send(buf.into()).await?;
+    let write_arc = Arc::new(Mutex::new(write));
+
+    // first we start a task that sends pings to the server every 20 seconds
+    let ping_future = utils::ping_sender(write_arc.clone());
 
     let read_future = {
         read.for_each(|message| async {
@@ -52,6 +56,9 @@ pub async fn consume_orderbooks(
                         },
                         Message::Ping(p) => {
                             debug!("Message::Ping received : length = {}", p.len());
+                            if let Err(err) = write_arc.lock().await.send(Message::Pong(vec![0])).await {
+                                error!("Failed to send pong! : {}", err);
+                            };
                             return;
                         },
                         Message::Pong(p) => {
@@ -93,7 +100,7 @@ pub async fn consume_orderbooks(
             }
         })
     };
-    read_future.await;
+    futures::future::select(Box::pin(read_future), Box::pin(ping_future)).await;
     error!("Websocket failed and closed!");
     Ok(())
 }

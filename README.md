@@ -125,4 +125,12 @@ There are still a few improvements that could be made to the server:
   websocket consumers' output streams. If a websocket dies and is relaunched,
   the subsequent event id arriving at the aggregator might not be contiguous,
   the aggregator could then hold off on pushing aggregated books until
-  contiguity is restored. 
+  contiguity is restored.
+
+- Currently for bitstamp, the depth of the book received is greater than the
+  configured depth for the server. Consequently, some messages received include
+  changes to the orderbook in levels outside the requested range. In this case
+  the identical book is pushed to the aggregator. To reduce the number of
+  duplicate messages being sent out of the aggregator, one should implement a
+  comparrison check between the cached book and the newly received book, if
+  there are no changes, there is no need to send out the aggregated book.
