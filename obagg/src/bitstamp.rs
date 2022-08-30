@@ -3,7 +3,7 @@ use log::{debug, error, info};
 use serde_json;
 use std::{error::Error, sync::Arc};
 use tokio::sync::{mpsc, Mutex};
-use tokio_tungstenite::{connect_async, tungstenite::Message};
+use tokio_tungstenite::connect_async;
 use tonic::Status;
 
 use crate::{
@@ -41,29 +41,10 @@ pub async fn consume_orderbooks(
             let mut orderbook = Orderbook::new();
             match message {
                 Ok(message) => {
-                    let msg = match message {
-                        Message::Text(s) => s,
-                        Message::Close(c) => {
-                            debug!(
-                                "Message::Close received : {}",
-                                c.expect("Close Frame was None!")
-                            );
-                            return;
-                        }
-                        Message::Binary(b) => {
-                            debug!("Message::Binary received : length = {}", b.len());
-                            return;
-                        }
-                        Message::Frame(f) => {
-                            debug!("Message::Frame received : {}", f);
-                            return;
-                        }
-                        Message::Ping(p) => {
-                            debug!("Message::Ping received : length = {}", p.len());
-                            return;
-                        }
-                        Message::Pong(p) => {
-                            debug!("Message::Pong received : length = {}", p.len());
+                    let msg = match utils::handle_message(message) {
+                        Ok(s) => s,
+                        Err(e) => {
+                            debug!("{}", e);
                             return;
                         }
                     };

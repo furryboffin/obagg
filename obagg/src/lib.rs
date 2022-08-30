@@ -10,6 +10,7 @@ mod bitstamp;
 mod client;
 pub mod config;
 mod definitions;
+mod error;
 mod grpc;
 mod serde;
 mod server;

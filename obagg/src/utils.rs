@@ -14,6 +14,7 @@ use tokio_tungstenite::{tungstenite::Message, MaybeTlsStream, WebSocketStream};
 use crate::{
     config,
     definitions::{Orderbook, OrderbookLevel},
+    error::ObaggError,
     orderbook::Level,
 };
 
@@ -107,31 +108,16 @@ pub async fn ping_sender(
     }
 }
 
-// pub fn handle_message(msg: Message) -> Result<String, Box<dyn Error + Send + Sync>> {
-//     match msg {
-//         Message::Text(s) => Ok(s),
-//         Message::Close(c) => {
-//             debug!("Message::Close received : {}", c.expect("Close Frame was None!"));
-//             Err();
-//         },
-//         Message::Binary(b) => {
-//             debug!("Message::Binary received : length = {}", b.len());
-//             return;
-//         },
-//         Message::Frame(f) => {
-//             debug!("Message::Frame received : {}", f);
-//             return;
-//         },
-//         Message::Ping(p) => {
-//             debug!("Message::Ping received : length = {}", p.len());
-//             return;
-//         },
-//         Message::Pong(p) => {
-//             debug!("Message::Pong received : length = {}", p.len());
-//             return;
-//         },
-//     }
-// }
+pub fn handle_message(msg: Message) -> Result<String, Box<dyn Error + Send + Sync>> {
+    match msg {
+        Message::Text(s) => Ok(s),
+        Message::Close(_) => Err(Box::new(ObaggError("Message::Close received.".into()))),
+        Message::Binary(_) => Err(Box::new(ObaggError("Message::Binary received.".into()))),
+        Message::Frame(_) => Err(Box::new(ObaggError("Message::Frame received.".into()))),
+        Message::Ping(_) => Err(Box::new(ObaggError("Message::Ping received.".into()))),
+        Message::Pong(_) => Err(Box::new(ObaggError("Message::Pong received.".into()))),
+    }
+}
 
 // pub fn stream_function() -> Arc<Mutex<Pin<Box<dyn Stream<Item = Summary> + Send + Sync + 'static>>>>
 // {
