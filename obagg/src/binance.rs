@@ -17,7 +17,7 @@ const EXCHANGE: &str = "binance";
 // For depths 20 and under we employ the reduced orderbook stream.
 pub async fn consume_reduced_orderbooks(
     conf: &config::Server,
-    tx: mpsc::Sender<Result<Orderbooks, Status>>,
+    tx: &mpsc::Sender<Result<Orderbooks, Status>>,
 ) -> Result<(), Box<dyn Error + Send + Sync>> {
     info!("Binance Collector Started, attempting to connect to websocket server...");
     let base = url::Url::parse(&conf.exchanges.binance.websocket.as_str())?;
@@ -93,7 +93,7 @@ pub async fn consume_reduced_orderbooks(
 //     that this rule was not elaborated in the binance documentation.)
 pub async fn consume_orderbooks(
     conf: &config::Server,
-    tx: mpsc::Sender<Result<Orderbooks, Status>>,
+    tx: &mpsc::Sender<Result<Orderbooks, Status>>,
 ) -> Result<(), Box<dyn Error + Send + Sync>> {
     // Binance requires that the ticker and params be specified in the url. First we must construct
     // the url.

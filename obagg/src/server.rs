@@ -46,7 +46,7 @@ pub async fn server(conf: config::Server) -> Result<(), Box<dyn Error + Send + S
             if binance_conf.depth <= 20 {
                 while let Ok(_) = binance::consume_reduced_orderbooks(
                     &binance_conf,
-                    binance_orderbook_ws_tx.clone(),
+                    &binance_orderbook_ws_tx,
                 )
                 .await
                 {
@@ -54,7 +54,7 @@ pub async fn server(conf: config::Server) -> Result<(), Box<dyn Error + Send + S
                 }
             } else {
                 while let Ok(_) =
-                    binance::consume_orderbooks(&binance_conf, binance_orderbook_ws_tx.clone())
+                    binance::consume_orderbooks(&binance_conf, &binance_orderbook_ws_tx)
                         .await
                 {
                     warn!("Relaunching binance websocket consumer.");
