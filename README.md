@@ -3,7 +3,7 @@
 ## Summary
 
 Obagg is an Orderbook Aggregator gRPC server. This initial version aggregates
-orderbook websockets streams from binance and bitstamp, but can be easily
+orderbook websocket streams from binance and bitstamp, but can be easily
 extended to include other exchanges. Obagg handles errors in the websockets
 consumers thus maintaining an open stream at all times. Note that the server is
 designed such that if no clients are connected, the most recent incoming
@@ -16,6 +16,10 @@ cache and aggregated book for the very first output message pushed to the
 first available client stream producer. Note also that only one instantiation
 of the websocket consumers and aggregator are needed regardless of the number of
 clients connected.
+
+In order to guarantee websocket streams stay open, each consumer has a ping loop
+which sends ping messages to the exchange websocket server at regular intervals
+defined in the config file.
 
 ## Components
 
@@ -64,7 +68,7 @@ Once you have cloned the github repository locally, cd into the project folder:
 Now you can compile and run locally with the following commands:
 ```
 cargo build
-export AGGREGATED_ORDERBOOK_CONFIG="conf/obagg.yaml"
+export AGGREGATED_ORDERBOOK_CONFIG="[PATH_TO_OBAGG]/conf/obagg.yaml"
 cargo run --bin obagg -- --no-syslog grpc
 cargo run --bin obagg -- --no-syslog client
 ```
@@ -72,6 +76,11 @@ cargo run --bin obagg -- --no-syslog client
 You will probably want to run the grpc server and the client in different
 terminals for simplicity.
 
+If you want to change the log level to `debug` you need to add the following
+environmental variable:
+```
+export RUST_LOG="warn, obagg::binance=debug, obagg::bitstamp=debug, obagg::aggregator=debug"
+```
 
 ## Configuration Options
 
@@ -83,9 +92,13 @@ designed to work with these two specific exchanges at this time. The `exchanges`
 config allows you to enable and disable each exchange as well as specify the
 base URL for the websocket and API if required for snapshots. Future adaptation
 of the server would aim to make it more generic and allow for several more
-exchanges to be added. Lastly one can set `identical_level_order` to be true
-or false depending on whether you want want identical levels to be ordered with
-larger amounts towards or away from the middle of the book.
+exchanges to be added. Each exchange also requires a `ping_period` value, which
+defines the period, in seconds, that is used to regularly send pings to the
+exchange server. An optional parameter `period` can be set to specify the min
+period that only some exchange websockets offer to use to push orderbook updates
+to the consumers. Lastly one can set `identical_level_order` to be true or false
+depending on whether you want identical levels to be ordered with larger amounts
+towards or away from the middle of the book.
 
 When different exchanges have identical levels in their books we must choose
 the order. Setting this to true will order higher amounts closer to the center
@@ -106,9 +119,6 @@ depths over 20.
 There are still a few improvements that could be made to the server:
 
 - Unit tests for the consumers can be added as well as the aggregator.
-
-- Errors could be improved by using custom Error enums and converting all other
-  errors into our custom type for top level handling.
 
 - Rather than defining the ticker in the conf file and restricting the server
   to serve only one ticker, allow the client to send a message to the gRPC
@@ -133,4 +143,7 @@ There are still a few improvements that could be made to the server:
   the identical book is pushed to the aggregator. To reduce the number of
   duplicate messages being sent out of the aggregator, one should implement a
   comparrison check between the cached book and the newly received book, if
-  there are no changes, there is no need to send out the aggregated book.
+  there are no changes, there is no need to send out the aggregated book. One
+  would need to confirm that such an addition did not add a significant delay
+  to the processing time in order to minimize latency as much as possible.
+   
