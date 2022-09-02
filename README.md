@@ -9,7 +9,7 @@ consumers thus maintaining an open stream at all times. Note that the server is
 designed such that if no clients are connected, the most recent incoming
 orderbook messages are cached and the aggregated book created, while no
 aggregated book is pushed out to client connection producers since there are
-none to iterate over. 
+none to iterate over.
 
 Once at least one client is connected the aggregator will now have an up-to-date
 cache and aggregated book for the very first output message pushed to the
@@ -51,7 +51,7 @@ docker build -t obagg .
 docker run -t obagg
 ```
 
-## Running Obagg locally
+## Running Obagg locally with cargo
 
 Obagg is dependent on the Rust crate `tonic`, which in turn relies on the
 `protoc` protobuf compiler. This can be installed locally:
@@ -80,6 +80,17 @@ If you want to change the log level to `debug` you need to add the following
 environmental variable:
 ```
 export RUST_LOG="warn, obagg::binance=debug, obagg::bitstamp=debug, obagg::aggregator=debug"
+```
+
+## Building and running a release version
+
+To build and run a release version of the obagg binary:
+
+```
+cargo build --release
+export AGGREGATED_ORDERBOOK_CONFIG="[PATH_TO_OBAGG]/conf/obagg.yaml"
+target/release/obagg --no-syslog grpc
+target/release/obagg --no-syslog client
 ```
 
 ## Configuration Options
@@ -122,7 +133,7 @@ There are still a few improvements that could be made to the server:
 
 - Rather than defining the ticker in the conf file and restricting the server
   to serve only one ticker, allow the client to send a message to the gRPC
-  server to select the ticker that they want. This would require adding inbound 
+  server to select the ticker that they want. This would require adding inbound
   message handling to the gRPC server implementation.
 
 - Add documentation for the gRPC server. One could use swagger to generate a
@@ -146,4 +157,4 @@ There are still a few improvements that could be made to the server:
   there are no changes, there is no need to send out the aggregated book. One
   would need to confirm that such an addition did not add a significant delay
   to the processing time in order to minimize latency as much as possible.
-   
+
