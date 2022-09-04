@@ -1,7 +1,8 @@
 use futures::{future::*, Future};
 use log::{info, warn};
 use std::{collections::HashMap, error::Error, pin::Pin, sync::Arc};
-use tokio::sync::{mpsc, Mutex};
+
+use tokio::sync::{mpsc, RwLock};
 use tonic::{transport::Server, Status};
 
 use crate::{
@@ -13,26 +14,31 @@ use crate::{
 // followed by launching websocket clients for each exchange.
 pub async fn server(conf: config::Server) -> Result<(), Box<dyn Error + Send + Sync>> {
     let tx_pool = HashMap::new();
-    let tx_pool = Arc::new(Mutex::new(tx_pool));
+
+    // let lock = RwLock::new(5);
+    // let tx_pool_arc = Arc::new(Mutex::new(tx_pool));
+    let tx_pool_rwl = RwLock::new(tx_pool);
+    let tx_pool_arc = Arc::new(tx_pool_rwl);
     let (binance_orderbook_ws_tx, mut aggregator_rx) =
         mpsc::channel::<Result<Orderbooks, Status>>(1024); // or bounded
     let bitstamp_orderbook_ws_tx = binance_orderbook_ws_tx.clone();
     let server = OrderbookAggregatorServer {
-        tx_pool: tx_pool.clone(),
+        tx_pool: tx_pool_arc.clone(),
     };
     let binance_conf = conf.clone();
     let bitstamp_conf = conf.clone();
     let aggregator_conf = conf.clone();
 
     // launch the server in the main thread.
-    let server_future: Pin<Box<dyn Future<Output = Result<(), Box<dyn Error + Send + Sync>>>>> = Box::pin(
-        Server::builder()
-            .add_service(
-                orderbook::orderbook_aggregator_server::OrderbookAggregatorServer::new(server),
-            )
-            .serve(conf.bind_address)
-            .map_err(|e| e.into()),
-    );
+    let server_future: Pin<Box<dyn Future<Output = Result<(), Box<dyn Error + Send + Sync>>>>> =
+        Box::pin(
+            Server::builder()
+                .add_service(
+                    orderbook::orderbook_aggregator_server::OrderbookAggregatorServer::new(server),
+                )
+                .serve(conf.bind_address)
+                .map_err(|e| e.into()),
+        );
     info!(
         "Started gRPC Server... Bind Address: {:?}",
         &conf.bind_address
@@ -73,7 +79,7 @@ pub async fn server(conf: config::Server) -> Result<(), Box<dyn Error + Send + S
     // launch the orderbook aggregator in a thread
     tokio::spawn(async move {
         while let Ok(_) =
-            aggregator::aggregate_orderbooks(&aggregator_conf, &mut aggregator_rx, tx_pool.clone())
+            aggregator::aggregate_orderbooks(&aggregator_conf, &mut aggregator_rx, &tx_pool_arc)
                 .await
         {
             warn!("Relaunching bitstamp websocket consumer.");

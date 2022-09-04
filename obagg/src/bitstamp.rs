@@ -1,8 +1,8 @@
 use futures::{SinkExt, StreamExt};
 use log::{debug, error, info};
 use serde_json;
-use std::{error::Error, sync::Arc};
-use tokio::sync::{mpsc, Mutex};
+use std::error::Error;
+use tokio::sync::mpsc;
 use tokio_tungstenite::connect_async;
 use tonic::Status;
 
@@ -31,10 +31,11 @@ pub async fn consume_orderbooks(
         conf.ticker
     );
     write.send(buf.into()).await?;
-    let write_arc = Arc::new(Mutex::new(write));
+    // let write_arc = Arc::new(Mutex::new(write));
+    // let write_arc = Arc::new(Mutex::new(write));
 
     // first we start a task that sends pings to the server every 20 seconds
-    let ping_future = utils::ping_sender(write_arc.clone(), conf.exchanges.bitstamp.ping_period);
+    let ping_future = utils::ping_sender(write, conf.exchanges.bitstamp.ping_period);
 
     let read_future = {
         read.for_each(|message| async {

@@ -5,7 +5,7 @@ use std::{
     sync::Arc,
     task::{Context, Poll},
 };
-use tokio::sync::{mpsc, Mutex};
+use tokio::sync::{mpsc, RwLock};
 use tokio_stream::Stream;
 use tonic::{Request, Response, Status};
 use uuid::Uuid;
@@ -17,7 +17,8 @@ use crate::{
 
 type OrderbookAggregatorResult<T> = Result<Response<T>, Status>;
 type ResponseStream = Pin<Box<dyn Stream<Item = Result<Summary, Status>> + Send>>;
-type ProducerPool = Arc<Mutex<HashMap<Uuid, mpsc::Sender<Result<Summary, Status>>>>>;
+type ProducerPool = Arc<RwLock<HashMap<Uuid, mpsc::Sender<Result<Summary, Status>>>>>;
+
 
 #[derive(Debug)]
 pub struct OrderbookAggregatorServer {
@@ -62,7 +63,7 @@ impl orderbook::orderbook_aggregator_server::OrderbookAggregator for OrderbookAg
                 &id
             );
             while let Some(_) = oneshot_rx.recv().await {
-                let mut tx_pool = tx_pool_pop.lock().await;
+                let mut tx_pool = tx_pool_pop.write().await;
                 info!(
                     "gRPC client connection closed, remove producer pool entry: {}",
                     &id
@@ -72,7 +73,7 @@ impl orderbook::orderbook_aggregator_server::OrderbookAggregator for OrderbookAg
         });
 
         {
-            let mut tx_pool = self.tx_pool.lock().await;
+            let mut tx_pool = self.tx_pool.write().await;
             info!("Add a new gRPC producer pool entry with id {}", &id);
             tx_pool.insert(id, tx.clone());
         }

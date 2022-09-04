@@ -1,6 +1,6 @@
-use log::error;
-use std::{collections::HashMap, error::Error, sync::Arc};
-use tokio::sync::{mpsc, Mutex};
+use log::{debug, error};
+use std::{collections::HashMap, error::Error};
+use tokio::sync::{mpsc, RwLock};
 use tonic::Status;
 use uuid::Uuid;
 
@@ -14,7 +14,7 @@ use crate::{
 pub async fn aggregate_orderbooks(
     conf: &config::Server,
     rx: &mut mpsc::Receiver<Result<Orderbooks, Status>>,
-    tx_pool: Arc<Mutex<HashMap<Uuid, mpsc::Sender<Result<Summary, Status>>>>>,
+    tx_pool: &RwLock<HashMap<Uuid, mpsc::Sender<Result<Summary, Status>>>>,
 ) -> Result<(), Box<dyn Error + Send + Sync>> {
     let mut binance_ob_cache = Orderbook::new();
     let mut bitstamp_ob_cache = Orderbook::new();
@@ -28,6 +28,7 @@ pub async fn aggregate_orderbooks(
                 // aggregate the cache of the other book type into the aggregated_orderbook.
                 match orderbook {
                     Orderbooks::Binance(binance_orderbook) => {
+                        debug!("Message from Binance received.");
                         binance_ob_cache = binance_orderbook.clone();
 
                         aggregated_orderbook.bids = bitstamp_ob_cache
@@ -61,6 +62,7 @@ pub async fn aggregate_orderbooks(
                         );
                     }
                     Orderbooks::Bitstamp(bitstamp_orderbook) => {
+                        debug!("Message from Bitstamp received.");
                         bitstamp_ob_cache = bitstamp_orderbook.clone();
                         aggregated_orderbook.bids = binance_ob_cache
                             .bids
@@ -93,7 +95,7 @@ pub async fn aggregate_orderbooks(
 
                 let aggregated_orderbook_reduced = aggregated_orderbook.reduce(conf.depth);
 
-                let tx_pool_locked = tx_pool.lock().await;
+                let tx_pool_locked = tx_pool.read().await;
                 if tx_pool_locked.len() == 0 {
                     continue;
                 }

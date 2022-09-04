@@ -36,10 +36,10 @@ pub async fn consume_reduced_orderbooks(
     info!("Binance WebSocket handshake has been successfully completed.");
 
     let (write, read) = ws_stream.split();
-    let write_arc = Arc::new(Mutex::new(write));
+    // let write_arc = Arc::new(Mutex::new(write));
 
     // first we start a task that sends pings to the server every 20 seconds
-    let ping_future = utils::ping_sender(write_arc.clone(), conf.exchanges.binance.ping_period);
+    let ping_future = utils::ping_sender(write, conf.exchanges.binance.ping_period);
 
     // now we handle incoming messages
     let read_future = Box::pin({
@@ -135,10 +135,10 @@ pub async fn consume_orderbooks(
     ));
     let is_first = Arc::new(Mutex::new(true));
     let prev_u = Arc::new(Mutex::new(0));
-    let write_arc = Arc::new(Mutex::new(write));
+    // let write_arc = Arc::new(Mutex::new(write));
 
     // first we start a task that sends pings to the server every 20 seconds
-    let ping_future = utils::ping_sender(write_arc.clone(), conf.exchanges.binance.ping_period);
+    let ping_future = utils::ping_sender(write, conf.exchanges.binance.ping_period);
 
     // now that we have the order_book snapshot, we can process updates
     let read_future = {

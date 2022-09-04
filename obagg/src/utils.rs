@@ -1,15 +1,12 @@
 use futures::SinkExt;
 use log::error;
-use std::{error::Error, sync::Arc};
+use std::error::Error;
 use tokio::time::{sleep, Duration};
 
 use futures::stream::SplitSink;
-// use std::error::Error;
-// use log::debug;
 use rust_decimal::Decimal;
-use tokio::{net::TcpStream, sync::Mutex};
+use tokio::net::TcpStream;
 use tokio_tungstenite::{tungstenite::Message, MaybeTlsStream, WebSocketStream};
-// use tokio_tungstenite::tungstenite::Message;
 
 use crate::{
     config,
@@ -90,11 +87,12 @@ pub fn handle_update_message(
 }
 
 pub async fn ping_sender(
-    write_arc: Arc<Mutex<SplitSink<WebSocketStream<MaybeTlsStream<TcpStream>>, Message>>>,
+    // write_arc: Arc<Mutex<SplitSink<WebSocketStream<MaybeTlsStream<TcpStream>>, Message>>>,
+    mut write: SplitSink<WebSocketStream<MaybeTlsStream<TcpStream>>, Message>,
     period: u16,
 ) -> Result<(), Box<dyn Error + Send + Sync>> {
     loop {
-        let mut write = write_arc.lock().await;
+        // let mut write = write_arc.lock().await;
         match write.send(Message::Ping(vec![0])).await {
             Ok(_) => {
                 sleep(Duration::from_secs(period.into())).await;

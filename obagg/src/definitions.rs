@@ -105,6 +105,17 @@ pub struct OrderbookLevel {
     pub level: (f64, f64),
 }
 
+// JRF TOD In order to implement from here, the OrderbookLevel should know which exchange it is.
+// impl From<OrderbookLevel> for Level {
+//     fn from(obl: OrderbookLevel) -> Self {
+//         Level {
+//             amount: obl.level.1,
+//             exchange: exchange.into(),
+//             price: obl.level.0,
+//         }
+//     }
+// }
+
 impl OrderbookLevel {
     pub fn get_level(&self, exchange: &str) -> Level {
         Level {

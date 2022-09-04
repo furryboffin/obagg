@@ -22,6 +22,11 @@ where
     D: Deserializer<'de>,
 {
     let v: Vec<String> = Vec::deserialize(deserializer)?;
+    if v.len() != 2 {
+        return Err(serde::de::Error::custom(format!(
+            "Failed to deserialize both price and amount from level. Levels must contain 2 elements."
+        )));
+    }
     let level = f64::from_str(&v[0]).map_err(de::Error::custom);
     let amount = f64::from_str(&v[1]).map_err(de::Error::custom);
     match (level, amount) {
