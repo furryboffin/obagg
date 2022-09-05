@@ -1,3 +1,4 @@
+use rust_decimal::Decimal;
 use serde::{self, de, Deserialize, Deserializer};
 use std::str::FromStr;
 
@@ -17,7 +18,7 @@ where
     u64::from_str(&s).map_err(de::Error::custom)
 }
 
-pub fn tf64_from_str<'de, D>(deserializer: D) -> Result<(f64, f64), D::Error>
+pub fn tf64_from_str<'de, D>(deserializer: D) -> Result<(Decimal, f64), D::Error>
 where
     D: Deserializer<'de>,
 {
@@ -27,7 +28,7 @@ where
             "Failed to deserialize both price and amount from level. Levels must contain 2 elements."
         )));
     }
-    let level = f64::from_str(&v[0]).map_err(de::Error::custom);
+    let level = Decimal::from_str(&v[0]).map_err(de::Error::custom);
     let amount = f64::from_str(&v[1]).map_err(de::Error::custom);
     match (level, amount) {
         (Ok(l), Ok(a)) => Ok((l, a)),

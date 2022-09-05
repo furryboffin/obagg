@@ -8,11 +8,12 @@ use tonic::Status;
 
 use crate::{
     config,
-    definitions::{BinanceOrderbookMessage, BinanceOrderbookUpdateMessage, Orderbook, Orderbooks},
+    definitions::{
+        BinanceOrderbookMessage, BinanceOrderbookUpdateMessage, ExchangeOrderbookLevel, Orderbook,
+        Orderbooks,
+    },
     utils,
 };
-
-const EXCHANGE: &str = "binance";
 
 // For depths 20 and under we employ the reduced orderbook stream.
 pub async fn consume_reduced_orderbooks(
@@ -36,7 +37,6 @@ pub async fn consume_reduced_orderbooks(
     info!("Binance WebSocket handshake has been successfully completed.");
 
     let (write, read) = ws_stream.split();
-    // let write_arc = Arc::new(Mutex::new(write));
 
     // first we start a task that sends pings to the server every 20 seconds
     let ping_future = utils::ping_sender(write, conf.exchanges.binance.ping_period);
@@ -44,7 +44,7 @@ pub async fn consume_reduced_orderbooks(
     // now we handle incoming messages
     let read_future = Box::pin({
         read.for_each(|message| async {
-            let mut orderbook = Orderbooks::Binance(Orderbook::new());
+            let mut orderbook = Orderbook::new();
             match message {
                 Ok(message) => {
                     let msg = match utils::handle_message(message) {
@@ -57,17 +57,19 @@ pub async fn consume_reduced_orderbooks(
                     match serde_json::from_str::<BinanceOrderbookMessage>(&msg) {
                         Ok(orderbook_message) => {
                             for bid in orderbook_message.bids {
-                                orderbook
-                                    .bids()
-                                    .insert(bid.get_price(), bid.get_level(EXCHANGE));
+                                orderbook.bids.insert(
+                                    bid.price(),
+                                    ExchangeOrderbookLevel::Binance(bid).into(),
+                                );
                             }
                             for ask in orderbook_message.asks {
-                                orderbook
-                                    .asks()
-                                    .insert(ask.get_price(), ask.get_level(EXCHANGE));
+                                orderbook.asks.insert(
+                                    ask.price(),
+                                    ExchangeOrderbookLevel::Binance(ask).into(),
+                                );
                             }
                             if let Err(_item) =
-                                tx.send(Result::<Orderbooks, Status>::Ok(orderbook)).await
+                                tx.send(Result::<Orderbooks, Status>::Ok(Orderbooks::Binance(orderbook))).await
                             {
                                 error!("Error sending binance orderbook item.");
                             };
@@ -135,7 +137,6 @@ pub async fn consume_orderbooks(
     ));
     let is_first = Arc::new(Mutex::new(true));
     let prev_u = Arc::new(Mutex::new(0));
-    // let write_arc = Arc::new(Mutex::new(write));
 
     // first we start a task that sends pings to the server every 20 seconds
     let ping_future = utils::ping_sender(write, conf.exchanges.binance.ping_period);
@@ -196,21 +197,19 @@ pub async fn consume_orderbooks(
                             *prev_u_lk = orderbook_message.last_update_id;
 
                             let bids_in = orderbook_message.bids;
-                            utils::handle_update_message(
-                                &bids_in,
+                            utils::handle_binance_update_message(
+                                bids_in,
                                 &mut orderbook,
                                 conf.depth,
                                 true,
-                                EXCHANGE,
                             );
 
                             let asks_in = orderbook_message.asks;
-                            utils::handle_update_message(
-                                &asks_in,
+                            utils::handle_binance_update_message(
+                                asks_in,
                                 &mut orderbook,
                                 conf.depth,
                                 false,
-                                EXCHANGE,
                             );
 
                             // reduce the depth of the orderbook if required
@@ -264,12 +263,12 @@ async fn get_snapshot(
     for bid in orderbook_message.bids {
         orderbook
             .bids
-            .insert(bid.get_price(), bid.get_level(EXCHANGE));
+            .insert(bid.price(), ExchangeOrderbookLevel::Binance(bid).into());
     }
     for ask in orderbook_message.asks {
         orderbook
             .asks
-            .insert(ask.get_price(), ask.get_level(EXCHANGE));
+            .insert(ask.price(), ExchangeOrderbookLevel::Binance(ask).into());
     }
     Ok(orderbook_message.last_update_id)
 }

@@ -19,7 +19,6 @@ type OrderbookAggregatorResult<T> = Result<Response<T>, Status>;
 type ResponseStream = Pin<Box<dyn Stream<Item = Result<Summary, Status>> + Send>>;
 type ProducerPool = Arc<RwLock<HashMap<Uuid, mpsc::Sender<Result<Summary, Status>>>>>;
 
-
 #[derive(Debug)]
 pub struct OrderbookAggregatorServer {
     pub tx_pool: ProducerPool,

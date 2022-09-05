@@ -1,8 +1,11 @@
-use rust_decimal::Decimal;
+use rust_decimal::{prelude::ToPrimitive, Decimal};
 use serde::{self, Deserialize};
 use std::collections::BTreeMap;
 
 use crate::orderbook::Level;
+
+const BINANCE: &str = "binance";
+const BITSTAMP: &str = "bitstamp";
 
 #[derive(Clone, Debug)]
 pub struct Orderbook {
@@ -33,25 +36,10 @@ impl Orderbook {
     }
 }
 
+#[derive(Clone, Debug)]
 pub enum Orderbooks {
     Binance(Orderbook),
     Bitstamp(Orderbook),
-}
-
-impl Orderbooks {
-    pub fn bids(&mut self) -> &mut BTreeMap<Decimal, Level> {
-        match self {
-            Self::Binance(b) => &mut b.bids,
-            Self::Bitstamp(b) => &mut b.bids,
-        }
-    }
-
-    pub fn asks(&mut self) -> &mut BTreeMap<Decimal, Level> {
-        match self {
-            Self::Binance(b) => &mut b.asks,
-            Self::Bitstamp(b) => &mut b.asks,
-        }
-    }
 }
 
 #[derive(Clone, Debug, Deserialize, PartialEq)]
@@ -98,44 +86,65 @@ pub struct BinanceOrderbookUpdateMessage {
     pub asks: Vec<OrderbookLevel>,
 }
 
+#[derive(Clone, Debug)]
+pub enum ExchangeOrderbookLevel {
+    Binance(OrderbookLevel),
+    Bitstamp(OrderbookLevel),
+}
+
+impl ExchangeOrderbookLevel {
+    pub fn amount(&self) -> f64 {
+        match self {
+            ExchangeOrderbookLevel::Binance(l) => l.level.1,
+            ExchangeOrderbookLevel::Bitstamp(l) => l.level.1,
+        }
+    }
+    pub fn price(&self) -> Decimal {
+        match self {
+            ExchangeOrderbookLevel::Binance(l) => l.level.0,
+            ExchangeOrderbookLevel::Bitstamp(l) => l.level.0,
+        }
+    }
+    pub fn exchange(&self) -> String {
+        match self {
+            ExchangeOrderbookLevel::Binance(_) => BINANCE.into(),
+            ExchangeOrderbookLevel::Bitstamp(_) => BITSTAMP.into(),
+        }
+    }
+}
+
+impl From<ExchangeOrderbookLevel> for Level {
+    fn from(obl: ExchangeOrderbookLevel) -> Self {
+        Level {
+            amount: obl.amount(),
+            exchange: obl.exchange(),
+            price: obl.price().to_f64().unwrap_or(0.0),
+        }
+    }
+}
+
 #[derive(Clone, Debug, Deserialize, PartialEq)]
 #[serde(transparent)]
 pub struct OrderbookLevel {
     #[serde(deserialize_with = "crate::serde::tf64_from_str")]
-    pub level: (f64, f64),
+    pub level: (Decimal, f64),
 }
 
-// JRF TOD In order to implement from here, the OrderbookLevel should know which exchange it is.
-// impl From<OrderbookLevel> for Level {
-//     fn from(obl: OrderbookLevel) -> Self {
-//         Level {
-//             amount: obl.level.1,
-//             exchange: exchange.into(),
-//             price: obl.level.0,
-//         }
-//     }
-// }
-
 impl OrderbookLevel {
-    pub fn get_level(&self, exchange: &str) -> Level {
-        Level {
-            amount: self.level.1,
-            exchange: exchange.into(),
-            price: self.level.0,
-        }
+    pub fn price(&self) -> Decimal {
+        self.level.0
     }
 
-    pub fn get_price(&self) -> Decimal {
-        self.level.0.to_string().parse::<Decimal>().unwrap()
-    }
-
-    pub fn get_amount(&self) -> f64 {
+    pub fn amount(&self) -> f64 {
         self.level.1
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use rust_decimal::Decimal;
+    use rust_decimal::prelude::FromPrimitive;
+
     use super::BinanceOrderbookMessage;
     use super::BinanceOrderbookUpdateMessage;
     use super::BitstampOrderbookData;
@@ -163,10 +172,10 @@ mod tests {
                 timestamp: 1661585367,
                 microtimestamp: 1661585367425575,
                 bids: vec![OrderbookLevel {
-                    level: (0.00259978, 4.35000000),
+                    level: (Decimal::from_f64(0.00259978).unwrap(), 4.35000000),
                 }],
                 asks: vec![OrderbookLevel {
-                    level: (0.00344831, 7.50000000),
+                    level: (Decimal::from_f64(0.00344831).unwrap(), 7.50000000),
                 }],
             },
             channel: String::from("order_book_ltcbtc"),
@@ -191,10 +200,10 @@ mod tests {
         let bitstamp_orderbook_message = BinanceOrderbookMessage {
             last_update_id: 1661585367,
             bids: vec![OrderbookLevel {
-                level: (0.00259978, 4.35000000),
+                level: (Decimal::from_f64(0.00259978).unwrap(), 4.35000000),
             }],
             asks: vec![OrderbookLevel {
-                level: (0.00344831, 7.50000000),
+                level: (Decimal::from_f64(0.00344831).unwrap(), 7.50000000),
             }],
         };
         let deserialized_orderbook =
@@ -220,10 +229,10 @@ mod tests {
             first_update_id: 1753501212,
             last_update_id: 1753501215,
             bids: vec![OrderbookLevel {
-                level: (0.00259978, 4.35000000),
+                level: (Decimal::from_f64(0.00259978).unwrap(), 4.35000000),
             }],
             asks: vec![OrderbookLevel {
-                level: (0.00344831, 7.50000000),
+                level: (Decimal::from_f64(0.00344831).unwrap(), 7.50000000),
             }],
         };
         let deserialized_orderbook =

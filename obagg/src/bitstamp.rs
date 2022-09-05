@@ -8,11 +8,9 @@ use tonic::Status;
 
 use crate::{
     config,
-    definitions::{BitstampOrderbookMessage, Orderbook, Orderbooks},
+    definitions::{BitstampOrderbookMessage, ExchangeOrderbookLevel, Orderbook, Orderbooks},
     utils,
 };
-
-const EXCHANGE: &str = "bitstamp";
 
 pub async fn consume_orderbooks(
     conf: &config::Server,
@@ -31,8 +29,6 @@ pub async fn consume_orderbooks(
         conf.ticker
     );
     write.send(buf.into()).await?;
-    // let write_arc = Arc::new(Mutex::new(write));
-    // let write_arc = Arc::new(Mutex::new(write));
 
     // first we start a task that sends pings to the server every 20 seconds
     let ping_future = utils::ping_sender(write, conf.exchanges.bitstamp.ping_period);
@@ -52,14 +48,16 @@ pub async fn consume_orderbooks(
                     match serde_json::from_str::<BitstampOrderbookMessage>(&msg) {
                         Ok(orderbook_message) => {
                             for bid in orderbook_message.data.bids {
-                                orderbook
-                                    .bids
-                                    .insert(bid.get_price(), bid.get_level(EXCHANGE));
+                                orderbook.bids.insert(
+                                    bid.price(),
+                                    ExchangeOrderbookLevel::Bitstamp(bid).into(),
+                                );
                             }
                             for ask in orderbook_message.data.asks {
-                                orderbook
-                                    .asks
-                                    .insert(ask.get_price(), ask.get_level(EXCHANGE));
+                                orderbook.asks.insert(
+                                    ask.price(),
+                                    ExchangeOrderbookLevel::Bitstamp(ask).into(),
+                                );
                             }
                             if let Err(_item) = tx
                                 .send(Result::<Orderbooks, Status>::Ok(Orderbooks::Bitstamp(

@@ -10,7 +10,7 @@ use tokio_tungstenite::{tungstenite::Message, MaybeTlsStream, WebSocketStream};
 
 use crate::{
     config,
-    definitions::{Orderbook, OrderbookLevel},
+    definitions::{ExchangeOrderbookLevel, Orderbook, OrderbookLevel},
     error::ObaggError,
     orderbook::Level,
 };
@@ -33,24 +33,23 @@ pub fn map_key(k: (Decimal, Level), conf: &config::Server, is_bids: bool) -> (De
     }
 }
 
-pub fn handle_update_message(
-    v: &Vec<OrderbookLevel>,
+pub fn handle_binance_update_message(
+    v: Vec<OrderbookLevel>,
     ob: &mut Orderbook,
     d: usize,
     is_bids: bool,
-    exchange: &str,
 ) {
-    let mut iter = v.iter().take(d);
+    let mut iter = v.into_iter().take(d);
     if is_bids {
         let b = &mut ob.bids;
         let other_b = &mut ob.asks;
         let other_b_clone = other_b.clone();
         let mut other_iter = other_b_clone.iter();
         while let Some(l) = iter.next() {
-            let key = l.get_price();
+            let key = l.price();
             b.remove(&key);
-            if l.get_amount() > 0.0 {
-                b.insert(key, l.get_level(exchange.into()));
+            if l.amount() > 0.0 {
+                b.insert(key, ExchangeOrderbookLevel::Binance(l).into());
 
                 // check if a bid overlaps old ask levels
                 while let Some((k, _)) = other_iter.next() {
@@ -68,10 +67,10 @@ pub fn handle_update_message(
         let other_b_clone = other_b.clone();
         let mut other_iter = other_b_clone.iter().rev();
         while let Some(l) = iter.next() {
-            let key = l.get_price();
+            let key = l.price();
             b.remove(&key);
-            if l.get_amount() > 0.0 {
-                b.insert(key, l.get_level(exchange.into()));
+            if l.amount() > 0.0 {
+                b.insert(key, ExchangeOrderbookLevel::Binance(l).into());
 
                 // check if a bid overlaps old ask levels
                 while let Some((k, _)) = other_iter.next() {
@@ -87,12 +86,10 @@ pub fn handle_update_message(
 }
 
 pub async fn ping_sender(
-    // write_arc: Arc<Mutex<SplitSink<WebSocketStream<MaybeTlsStream<TcpStream>>, Message>>>,
     mut write: SplitSink<WebSocketStream<MaybeTlsStream<TcpStream>>, Message>,
     period: u16,
 ) -> Result<(), Box<dyn Error + Send + Sync>> {
     loop {
-        // let mut write = write_arc.lock().await;
         match write.send(Message::Ping(vec![0])).await {
             Ok(_) => {
                 sleep(Duration::from_secs(period.into())).await;

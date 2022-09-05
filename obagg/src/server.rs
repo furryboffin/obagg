@@ -14,9 +14,6 @@ use crate::{
 // followed by launching websocket clients for each exchange.
 pub async fn server(conf: config::Server) -> Result<(), Box<dyn Error + Send + Sync>> {
     let tx_pool = HashMap::new();
-
-    // let lock = RwLock::new(5);
-    // let tx_pool_arc = Arc::new(Mutex::new(tx_pool));
     let tx_pool_rwl = RwLock::new(tx_pool);
     let tx_pool_arc = Arc::new(tx_pool_rwl);
     let (binance_orderbook_ws_tx, mut aggregator_rx) =
